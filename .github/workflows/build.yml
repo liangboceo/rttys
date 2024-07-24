@@ -1,0 +1,31 @@
+name: build
+on: push
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+    strategy:
+      matrix:
+        target: [ linux.amd64, linux.arm64 ]
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.1
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '12'
+      - name: ui
+        run: |
+          cd ui
+          npm install
+          npm run build
+          cd ..
+      - name: build
+        env:
+          target: ${{ matrix.target }}
+        run: |
+          os=$(echo $target | awk -F. '{print $1}')
+          arch=$(echo $target | awk -F. '{print $2}')
+          ./build.sh $os $arch

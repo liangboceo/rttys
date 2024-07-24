@@ -1,0 +1,52 @@
+name: release
+
+on:
+  push:
+    tags:
+    - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-20.04
+
+    steps:
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.18.1
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: '12'
+
+      - id: get-version
+        uses: battila7/get-version-action@v2
+
+      - uses: actions/checkout@v3
+
+      - id: build
+        run: |
+          cd ui
+          npm install
+          npm run build
+          cd ..
+
+          version=${{ steps.get-version.outputs.version-without-v }}
+
+          ./build.sh linux amd64
+          ./build.sh linux arm64
+
+          cp rttys.conf rttys.service rttys-linux-amd64
+          cp rttys.conf rttys.service rttys-linux-arm64
+
+          mv rttys-linux-amd64 rttys-linux-amd64-$version
+          mv rttys-linux-arm64 rttys-linux-arm64-$version
+
+          tar zcf rttys-linux-amd64-$version.tar.gz rttys-linux-amd64-$version
+          tar zcf rttys-linux-arm64-$version.tar.gz rttys-linux-arm64-$version
+
+      - uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          draft: true
+          prerelease: false
+          files: rttys-*.tar.gz
