@@ -1,9 +1,16 @@
 name: release
 
 on:
-  push:
-    tags:
-    - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        required: true
+      prerelease:
+        required: true
+        default: "true"
+      draft:
+        required: true
+        default: "true"
 
 jobs:
   release:
@@ -30,7 +37,7 @@ jobs:
           npm run build
           cd ..
 
-          version=${{ steps.get-version.outputs.version-without-v }}
+          version=${{ github.event.inputs.version }}
           chmod +x build.sh
           ./build.sh linux amd64
           ./build.sh linux arm64
@@ -44,9 +51,34 @@ jobs:
           tar zcf rttys-linux-amd64-$version.tar.gz rttys-linux-amd64-$version
           tar zcf rttys-linux-arm64-$version.tar.gz rttys-linux-arm64-$version
 
-      - uses: marvinpinto/action-automatic-releases@latest
+      - name: Create a Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          draft: true
-          prerelease: false
-          files: rttys-*.tar.gz
+          tag_name: v${{ github.event.inputs.version }}
+          release_name: v${{ github.event.inputs.version }}
+          body: released v${{ github.event.inputs.version }}
+          draft: ${{ github.event.inputs.draft }}
+          prerelease: ${{ github.event.inputs.prerelease }}
+
+      - name: Upload a Release Asset
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rttys-linux-amd64-${{ github.event.inputs.version }}.tar.gz
+          asset_name: rttys-linux-amd64-${{ github.event.inputs.version }}.tar.gz
+          asset_content_type: application/octet-stream
+
+      - name: Upload a Release Asset
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rttys-linux-arm64-${{ github.event.inputs.version }}.tar.gz
+          asset_name: rttys-linux-arm64-${{ github.event.inputs.version }}.tar.gz
+          asset_content_type: application/octet-stream
