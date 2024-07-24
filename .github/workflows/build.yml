@@ -28,4 +28,5 @@ jobs:
         run: |
           os=$(echo $target | awk -F. '{print $1}')
           arch=$(echo $target | awk -F. '{print $2}')
+          chmod +x build.sh
           ./build.sh $os $arch
