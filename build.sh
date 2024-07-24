@@ -12,11 +12,12 @@ BuildTime=$(date +%FT%T%z)
 generate() {
 	local os="$1"
 	local arch="$2"
+	local dir="rttys-$os-$arch"
 	local bin="rttys"
 	[ "$os" = "windows" ] && {
 		bin="rttys.exe"
 	}
-
+  mkdir -p $dir
 	GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -ldflags="-s -w -X $VersionPath.gitCommit=$GitCommit -X $VersionPath.buildTime=$BuildTime" -o $bin
 }
 
