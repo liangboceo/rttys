@@ -36,9 +36,7 @@ jobs:
           npm install
           npm run build
           cd ..
-
           version=${{ github.event.inputs.version }}
-          chmod +x build.sh
           ./build.sh linux amd64
           ./build.sh linux arm64
 
