@@ -31,7 +31,7 @@ jobs:
           cd ..
 
           version=${{ steps.get-version.outputs.version-without-v }}
-
+          chmod +x build.sh
           ./build.sh linux amd64
           ./build.sh linux arm64
 
