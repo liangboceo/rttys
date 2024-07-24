@@ -41,8 +41,8 @@ jobs:
           ./build.sh linux amd64
           ./build.sh linux arm64
 
-          cp rttys.conf rttys.service rttys-linux-amd64
-          cp rttys.conf rttys.service rttys-linux-arm64
+          cp rttys.conf rttys rttys-linux-amd64
+          cp rttys.conf rttys rttys-linux-arm64
 
           mv rttys-linux-amd64 rttys-linux-amd64-$version
           mv rttys-linux-arm64 rttys-linux-arm64-$version

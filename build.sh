@@ -12,11 +12,11 @@ BuildTime=$(date +%FT%T%z)
 generate() {
 	local os="$1"
 	local arch="$2"
-	local dir="../rttys-arch/rttys-$os-$arch"
+	local dir="rttys-$os-$arch"
 	local bin="rttys"
 
 	rm -rf $dir
-	mkdir $dir
+	mkdir -p $dir
 	cp rttys.conf $dir
 
 	[ "$os" = "windows" ] && {
