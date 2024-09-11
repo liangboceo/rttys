@@ -125,10 +125,10 @@ func (dev *device) DeviceID() string {
 
 func (dev *device) WriteMsg(typ int, data []byte) {
 	b := []byte{byte(typ), 0, 0}
-
 	binary.BigEndian.PutUint16(b[1:], uint16(len(data)))
-
-	dev.send <- append(b, data...)
+	if dev.send != nil {
+		dev.send <- append(b, data...)
+	}
 }
 
 func (dev *device) Close() {
