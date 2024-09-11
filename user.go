@@ -49,6 +49,12 @@ func (u *user) DeviceID() string {
 }
 
 func (u *user) WriteMsg(typ int, data []byte) {
+	//允许程序panic继续执行
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in f", r)
+		}
+	}()
 	u.send <- &usrMessage{
 		typ:  typ,
 		data: data,
