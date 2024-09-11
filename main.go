@@ -38,12 +38,6 @@ func initDb(cfg *config.Config) error {
 }
 
 func runRttys(c *cli.Context) {
-	//允许程序panic继续执行
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
-		}
-	}()
 	xlog.SetPath(c.String("log"))
 
 	if c.Bool("verbose") {
