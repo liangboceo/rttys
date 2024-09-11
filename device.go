@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -124,6 +125,12 @@ func (dev *device) DeviceID() string {
 }
 
 func (dev *device) WriteMsg(typ int, data []byte) {
+	//允许程序panic继续执行
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in f", r)
+		}
+	}()
 	b := []byte{byte(typ), 0, 0}
 	binary.BigEndian.PutUint16(b[1:], uint16(len(data)))
 	if dev.send != nil {
