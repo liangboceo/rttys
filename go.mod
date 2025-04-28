@@ -1,6 +1,6 @@
 module rttys
 
-go 1.17
+go 1.22
 
 require (
 	github.com/dwdcth/consoleEx v0.0.0-20180521133551-f56f6eb78b76
