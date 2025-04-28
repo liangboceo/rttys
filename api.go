@@ -238,10 +238,12 @@ func apiStart(br *broker) {
 		if devReq.Limit <= 0 {
 			devReq.Limit = 50
 		}
+		//重新封装返回体
+		devListResp := DevListResp{}
 		db, err := instanceDB(cfg.DB)
 		if err != nil {
 			log.Error().Msg(err.Error())
-			c.Status(http.StatusInternalServerError)
+			c.JSON(http.StatusOK, devListResp)
 			return
 		}
 		startRows := (devReq.Page - 1) * devReq.Limit
@@ -278,8 +280,6 @@ func apiStart(br *broker) {
 			}
 
 		}
-		//重新封装返回体
-		devListResp := DevListResp{}
 		devListResp.Page = devReq.Page
 		devListResp.Limit = devReq.Limit
 		devs := make([]DeviceInfo, 0)
@@ -288,7 +288,7 @@ func apiStart(br *broker) {
 		rows, err := db.Query(sql)
 		if err != nil {
 			log.Error().Msg(err.Error())
-			c.Status(http.StatusInternalServerError)
+			c.JSON(http.StatusOK, devListResp)
 			return
 		}
 		for rows.Next() {
