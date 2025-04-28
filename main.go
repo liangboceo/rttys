@@ -20,8 +20,6 @@ func initDb(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	defer db.Close()
-
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS config(name VARCHAR(512) PRIMARY KEY NOT NULL, value TEXT NOT NULL)")
 	if err != nil {
 		return err

@@ -69,8 +69,6 @@ func httpLogin(cfg *config.Config, creds *credentials) bool {
 		log.Error().Msg(err.Error())
 		return false
 	}
-	defer db.Close()
-
 	cnt := 0
 
 	db.QueryRow("SELECT COUNT(*) FROM account WHERE username = ? AND password = ?", creds.Username, creds.Password).Scan(&cnt)
@@ -117,7 +115,6 @@ func isAdminUsername(cfg *config.Config, username string) bool {
 		log.Error().Msg(err.Error())
 		return false
 	}
-	defer db.Close()
 
 	isAdmin := false
 
@@ -171,7 +168,6 @@ func apiStart(br *broker) {
 			c.Status(http.StatusInternalServerError)
 			return
 		}
-		defer db.Close()
 
 		value := "16"
 
@@ -203,7 +199,6 @@ func apiStart(br *broker) {
 			c.Status(http.StatusInternalServerError)
 			return
 		}
-		defer db.Close()
 
 		if size < 12 {
 			size = 12
@@ -250,7 +245,6 @@ func apiStart(br *broker) {
 			return
 		}
 		startRows := (devReq.Page - 1) * devReq.Limit
-		defer db.Close()
 		sql := ""
 		countSql := ""
 		searchUserName := ""
@@ -403,7 +397,6 @@ func apiStart(br *broker) {
 			c.Status(http.StatusInternalServerError)
 			return
 		}
-		defer db.Close()
 
 		isAdmin := 0
 
@@ -458,7 +451,6 @@ func apiStart(br *broker) {
 			c.Status(http.StatusInternalServerError)
 			return
 		}
-		defer db.Close()
 
 		rows, err := db.Query("SELECT username FROM account")
 		if err != nil {
@@ -512,8 +504,6 @@ func apiStart(br *broker) {
 			log.Error().Msg(err.Error())
 			return
 		}
-		defer db.Close()
-
 		isAdmin := false
 
 		if db.QueryRow("SELECT admin FROM account WHERE username = ?", data.Username).Scan(&isAdmin) == sql.ErrNoRows || isAdmin {
@@ -554,8 +544,6 @@ func apiStart(br *broker) {
 			log.Error().Msg(err.Error())
 			return
 		}
-		defer db.Close()
-
 		for _, devid := range data.Devices {
 			db.Exec("UPDATE device SET username = '' WHERE id = ?", devid)
 		}
@@ -581,8 +569,6 @@ func apiStart(br *broker) {
 			log.Error().Msg(err.Error())
 			return
 		}
-		defer db.Close()
-
 		username := ""
 		if cfg.LocalAuth || !isLocalRequest(c) {
 			username = getLoginUsername(c)

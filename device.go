@@ -157,10 +157,7 @@ func (dev *device) UpdateDb() {
 		log.Error().Msg(err.Error())
 		return
 	}
-	defer db.Close()
-
 	cnt := 0
-
 	db.QueryRow("SELECT COUNT(*) FROM device WHERE id = ?", dev.id).Scan(&cnt)
 	if cnt == 0 {
 		_, err = db.Exec("INSERT INTO device values(?,?,?,?)", dev.id, dev.desc, time.Now(), "")
