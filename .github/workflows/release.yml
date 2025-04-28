@@ -42,11 +42,14 @@ jobs:
           cp rttys.conf rttys rttys-linux-amd64
           ./build.sh linux arm64
           cp rttys.conf rttys rttys-linux-arm64
+          ./build.sh windows amd64
+          cp rttys.conf rttys.exe rttys-windows-amd64
           mv rttys-linux-amd64 rttys-linux-amd64-$version
           mv rttys-linux-arm64 rttys-linux-arm64-$version
-
+          mv rttys-windows-amd64 rttys-windows-amd64-$version
           tar zcf rttys-linux-amd64-$version.tar.gz rttys-linux-amd64-$version
           tar zcf rttys-linux-arm64-$version.tar.gz rttys-linux-arm64-$version
+          tar zcf rttys-windows-amd64-$version.tar.gz rttys-windows-amd64-$version
 
       - name: Create a Release
         id: create_release
