@@ -68,11 +68,10 @@ func runRttys(c *cli.Context) {
 
 	br := newBroker(cfg)
 	go br.run()
-
-	listenDevice(br)
+	//先启动接口，再启动监听，防止监听时间太长导致的接口启动不了
 	listenHttpProxy(br)
 	apiStart(br)
-
+	listenDevice(br)
 	select {}
 }
 
