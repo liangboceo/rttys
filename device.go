@@ -12,6 +12,7 @@ import (
 	"io/ioutil"
 	"net"
 	"rttys/client"
+	"rttys/utils"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -196,6 +197,7 @@ func parseHeartbeat(dev *device, b []byte) {
 func (dev *device) readLoop() {
 	defer func() {
 		dev.br.unregister <- dev
+		utils.ErrorHandle()
 	}()
 
 	br := bufio.NewReader(dev.conn)
@@ -308,6 +310,7 @@ func (dev *device) writeLoop() {
 	defer func() {
 		ticker.Stop()
 		dev.br.unregister <- dev
+		utils.ErrorHandle()
 	}()
 
 	ninactive := 0
@@ -395,8 +398,10 @@ func listenDevice(br *broker) {
 	}
 
 	go func() {
-		defer ln.Close()
-
+		defer func() {
+			_ = ln.Close()
+			utils.ErrorHandle()
+		}()
 		for {
 			conn, err := ln.Accept()
 			if err != nil {

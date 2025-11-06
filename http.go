@@ -109,7 +109,10 @@ func (rw *HttpProxyWriter) WriteRequest(req *http.Request) {
 }
 
 func doHttpProxy(brk *broker, c net.Conn) {
-	defer c.Close()
+	defer func() {
+		_ = c.Close()
+		utils.ErrorHandle()
+	}()
 
 	br := bufio.NewReader(c)
 
@@ -235,8 +238,10 @@ func listenHttpProxy(brk *broker) {
 	log.Info().Msgf("Listen http proxy on: %s", ln.Addr().(*net.TCPAddr))
 
 	go func() {
-		defer ln.Close()
-
+		defer func() {
+			_ = ln.Close()
+			utils.ErrorHandle()
+		}()
 		for {
 			c, err := ln.Accept()
 			if err != nil {

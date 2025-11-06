@@ -9,6 +9,7 @@ package main
 
 import (
 	"database/sql"
+	"rttys/utils"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,9 @@ var once sync.Once
 var cleanupTicker *time.Ticker
 
 func instanceDB(str string) (*sql.DB, error) {
+	defer func() {
+		utils.ErrorHandle()
+	}()
 	sp := strings.Split(str, "://")
 	once.Do(func() {
 		cleanupTicker = time.NewTicker(5 * time.Minute)

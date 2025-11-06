@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"rttys/utils"
 	"sync/atomic"
 	"time"
 
@@ -79,6 +80,7 @@ func userLoginAck(code int, c client.Client) {
 func (u *user) readLoop() {
 	defer func() {
 		u.br.unregister <- u
+		utils.ErrorHandle()
 	}()
 
 	for {
@@ -96,10 +98,10 @@ func (u *user) readLoop() {
 
 func (u *user) writeLoop() {
 	ticker := time.NewTicker(time.Second * 5)
-
 	defer func() {
 		ticker.Stop()
 		u.br.unregister <- u
+		utils.ErrorHandle()
 	}()
 
 	for {
@@ -122,6 +124,9 @@ func (u *user) writeLoop() {
 }
 
 func serveUser(br *broker, c *gin.Context) {
+	defer func() {
+		utils.ErrorHandle()
+	}()
 	devid := c.Param("devid")
 	if devid == "" {
 		c.Status(http.StatusBadRequest)

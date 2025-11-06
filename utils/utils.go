@@ -14,6 +14,13 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+func ErrorHandle() {
+	if e := recover(); e != nil {
+		log.Fatal().Msg(e.(error).Error())
+		return
+	}
+}
+
 // GenUniqueID generate a unique ID
 func GenUniqueID(extra string) string {
 	buf := make([]byte, 20)

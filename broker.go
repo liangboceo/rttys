@@ -63,6 +63,9 @@ func newBroker(cfg *config.Config) *broker {
 }
 
 func (br *broker) run() {
+	defer func() {
+		utils.ErrorHandle()
+	}()
 	for {
 		select {
 		case c := <-br.register:
