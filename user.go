@@ -127,19 +127,18 @@ func serveUser(br *broker, c *gin.Context) {
 	defer func() {
 		utils.ErrorHandle()
 	}()
-	devid := c.Param("devid")
-	if devid == "" {
-		c.Status(http.StatusBadRequest)
-		return
-	}
-
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		c.Status(http.StatusBadRequest)
 		log.Error().Msg(err.Error())
 		return
 	}
-
+	devid := c.Param("devid")
+	if devid == "" {
+		c.Status(http.StatusBadRequest)
+		conn.Close()
+		return
+	}
 	u := &user{
 		br:    br,
 		conn:  conn,
