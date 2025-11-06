@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"rttys/utils"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"rttys/client"
@@ -25,7 +25,8 @@ type user struct {
 	sid    string
 	devid  string
 	conn   *websocket.Conn
-	closed uint32
+	closed bool
+	close  sync.Once
 	send   chan *usrMessage // Buffered channel of outbound messages.
 }
 
@@ -50,26 +51,26 @@ func (u *user) DeviceID() string {
 }
 
 func (u *user) WriteMsg(typ int, data []byte) {
-	//允许程序panic继续执行
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println("Recovered in f", r)
-		}
-	}()
 	u.send <- &usrMessage{
 		typ:  typ,
 		data: data,
 	}
 }
 
-func (u *user) Close() {
-	if atomic.LoadUint32(&u.closed) == 1 {
-		return
-	}
-	atomic.StoreUint32(&u.closed, 1)
+func (u *user) Closed() bool {
+	return u.closed
+}
 
+func (u *user) CloseConn() {
 	u.conn.Close()
-	close(u.send)
+}
+
+func (u *user) Close() {
+	u.close.Do(func() {
+		u.closed = true
+		u.CloseConn()
+		close(u.send)
+	})
 }
 
 func userLoginAck(code int, c client.Client) {
@@ -80,7 +81,6 @@ func userLoginAck(code int, c client.Client) {
 func (u *user) readLoop() {
 	defer func() {
 		u.br.unregister <- u
-		utils.ErrorHandle()
 	}()
 
 	for {
@@ -98,6 +98,7 @@ func (u *user) readLoop() {
 
 func (u *user) writeLoop() {
 	ticker := time.NewTicker(time.Second * 5)
+
 	defer func() {
 		ticker.Stop()
 		u.br.unregister <- u
@@ -105,20 +106,23 @@ func (u *user) writeLoop() {
 	}()
 
 	for {
+		var err error
+
 		select {
 		case <-ticker.C:
-			u.WriteMsg(websocket.PingMessage, []byte{})
+			err = u.conn.WriteMessage(websocket.PingMessage, []byte{})
 
 		case msg, ok := <-u.send:
 			if !ok {
 				return
 			}
 
-			err := u.conn.WriteMessage(msg.typ, msg.data)
-			if err != nil {
-				log.Error().Msg(err.Error())
-				return
-			}
+			err = u.conn.WriteMessage(msg.typ, msg.data)
+		}
+
+		if err != nil {
+			log.Error().Msg(err.Error())
+			return
 		}
 	}
 }
@@ -127,18 +131,19 @@ func serveUser(br *broker, c *gin.Context) {
 	defer func() {
 		utils.ErrorHandle()
 	}()
+	devid := c.Param("devid")
+	if devid == "" {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		c.Status(http.StatusBadRequest)
 		log.Error().Msg(err.Error())
 		return
 	}
-	devid := c.Param("devid")
-	if devid == "" {
-		c.Status(http.StatusBadRequest)
-		conn.Close()
-		return
-	}
+
 	u := &user{
 		br:    br,
 		conn:  conn,
