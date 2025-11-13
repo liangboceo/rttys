@@ -81,7 +81,7 @@ func (br *broker) run() {
 					msg = "ID conflicting"
 					err = 1
 				} else if br.cfg.Token != "" && dev.token != br.cfg.Token {
-					log.Error().Msg("Invalid token from terminal device")
+					log.Error().Msg("Invalid token from terminal device:" + dev.token + ",our token is:" + br.cfg.Token)
 					msg = "Invalid token"
 					err = 1
 				} else if dev.proto < rttyProtoRequired {
