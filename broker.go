@@ -289,6 +289,8 @@ func (br *broker) run() {
 							dev.WriteMsg(msgTypeFile, b[:])
 						}
 					}
+				} else {
+					log.Error().Msg("Not found devId: " + s.dev.DeviceID())
 				}
 			} else {
 				log.Error().Msg("Not found sid: " + msg.sid)
