@@ -321,13 +321,15 @@ func (dev *device) writeLoop() {
 		case msg, ok := <-dev.send:
 			if !ok {
 				log.Error().Msg("writeLoop--notOk")
-				_ = dev.conn.Close()
+				ticker.Stop()
+				dev.br.unregister <- dev
 				return
 			}
 			_, err := dev.conn.Write(msg)
 			if err != nil {
 				log.Error().Msg("writeLoop:" + err.Error())
-				_ = dev.conn.Close()
+				ticker.Stop()
+				dev.br.unregister <- dev
 				return
 			}
 
@@ -335,14 +337,13 @@ func (dev *device) writeLoop() {
 			now := time.Now()
 			if now.Sub(dev.active) > heartbeatInterval*3/2 {
 				if dev.id == "" {
-					_ = dev.conn.Close()
+					ticker.Stop()
+					dev.br.unregister <- dev
 					return
 				}
-
-				log.Error().Msgf("Inactive device in long time: %s", dev.id)
 				if ninactive > 1 {
-					log.Error().Msgf("Inactive 3 times, now kill it: %s", dev.id)
-					_ = dev.conn.Close()
+					ticker.Stop()
+					dev.br.unregister <- dev
 					return
 				}
 				ninactive = ninactive + 1
