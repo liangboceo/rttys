@@ -317,15 +317,11 @@ func (dev *device) writeLoop() {
 		case msg, ok := <-dev.send:
 			if !ok {
 				log.Error().Msg("writeLoop--notOk")
-				ticker.Stop()
-				dev.br.unregister <- dev
 				return
 			}
 			_, err := dev.conn.Write(msg)
 			if err != nil {
 				log.Error().Msg("writeLoop:" + err.Error())
-				ticker.Stop()
-				dev.br.unregister <- dev
 				return
 			}
 
@@ -333,13 +329,9 @@ func (dev *device) writeLoop() {
 			now := time.Now()
 			if now.Sub(dev.active) > heartbeatInterval*3/2 {
 				if dev.id == "" {
-					ticker.Stop()
-					dev.br.unregister <- dev
 					return
 				}
 				if ninactive > 1 {
-					ticker.Stop()
-					dev.br.unregister <- dev
 					return
 				}
 				ninactive = ninactive + 1
@@ -416,6 +408,7 @@ func listenDevice(br *broker) {
 				timestamp: time.Now().Unix(),
 				send:      make(chan []byte, 256),
 			}
+
 			go dev.readLoop()
 			go dev.writeLoop()
 		}
