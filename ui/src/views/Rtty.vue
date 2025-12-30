@@ -225,6 +225,7 @@ export default {
     this.socket = socket;
 
     socket.addEventListener('message', ev => {
+      console.log(ev)
       const data = ev.data;
 
       if (typeof data === 'string') {
