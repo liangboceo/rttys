@@ -144,11 +144,7 @@ func (dev *device) Close() {
 		return
 	}
 	atomic.StoreUint32(&dev.closed, 1)
-
-	log.Debug().Msgf("Device '%s' disconnected", dev.conn.RemoteAddr())
-
-	dev.conn.Close()
-
+	_ = dev.conn.Close()
 	close(dev.send)
 }
 
@@ -413,9 +409,6 @@ func listenDevice(br *broker) {
 				log.Error().Msg(err.Error())
 				continue
 			}
-
-			log.Debug().Msgf("Device '%s' connected", conn.RemoteAddr())
-
 			dev := &device{
 				br:        br,
 				conn:      conn,
@@ -423,7 +416,6 @@ func listenDevice(br *broker) {
 				timestamp: time.Now().Unix(),
 				send:      make(chan []byte, 256),
 			}
-
 			go dev.readLoop()
 			go dev.writeLoop()
 		}
