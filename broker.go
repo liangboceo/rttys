@@ -237,9 +237,9 @@ func (br *broker) run() {
 
 		case msg := <-br.userMessage:
 			if s, ok := br.sessions[msg.sid]; ok {
+				log.Info().Msg("userMessageType: " + fmt.Sprintf("%d", msg.typ) + ":goal device" + s.dev.DeviceID())
 				if dev, ok := br.devices[s.dev.DeviceID()]; ok {
 					data := msg.data
-
 					if msg.typ == websocket.BinaryMessage {
 						typ := msgTypeTermData
 						if data[0] == 1 {
@@ -248,7 +248,6 @@ func (br *broker) run() {
 						dev.WriteMsg(typ, append([]byte(msg.sid), data[1:]...))
 					} else {
 						typ := jsoniter.Get(data, "type").ToString()
-
 						switch typ {
 						case "winsize":
 							b := [32 + 4]byte{}

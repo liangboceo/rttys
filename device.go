@@ -320,13 +320,14 @@ func (dev *device) writeLoop() {
 		select {
 		case msg, ok := <-dev.send:
 			if !ok {
+				log.Error().Msg("writeLoop--notOk")
 				_ = dev.conn.Close()
 				return
 			}
 			_, err := dev.conn.Write(msg)
 			if err != nil {
+				log.Error().Msg("writeLoop:" + err.Error())
 				_ = dev.conn.Close()
-				log.Error().Msg(err.Error())
 				return
 			}
 
