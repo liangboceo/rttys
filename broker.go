@@ -94,9 +94,8 @@ func (br *broker) run() {
 					dev.registered = true
 					br.devices[devid] = c
 					dev.UpdateDb()
-					log.Info().Msgf("Device '%s' registered, proto %d", devid, dev.proto)
+					//log.Info().Msgf("Device '%s' registered, proto %d", devid, dev.proto)
 				}
-
 				c.WriteMsg(msgTypeRegister, append([]byte{err}, msg...))
 
 				if err > 0 {
@@ -153,8 +152,7 @@ func (br *broker) run() {
 						log.Info().Msg("Delete session: " + sid)
 					}
 				}
-
-				log.Info().Msgf("Device '%s' unregistered", devid)
+				//log.Info().Msgf("Device '%s' unregistered", devid)
 			} else {
 				sid := c.(*user).sid
 
