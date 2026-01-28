@@ -337,7 +337,7 @@ func (dev *device) writeLoop() {
 				}
 
 				log.Error().Msgf("Inactive device in long time: %s", dev.id)
-				if ninactive > 1 {
+				if ninactive > 3 {
 					log.Error().Msgf("Inactive 3 times, now kill it: %s", dev.id)
 					return
 				}
@@ -346,6 +346,8 @@ func (dev *device) writeLoop() {
 
 			if now.Sub(lastHeartbeat) > heartbeatInterval-1 {
 				lastHeartbeat = now
+				//心跳连上，重置计数器
+				ninactive = 0
 				if len(dev.send) < 1 {
 					dev.WriteMsg(msgTypeHeartbeat, []byte{})
 				}
