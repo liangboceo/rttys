@@ -24,6 +24,15 @@ type Config struct {
 	WhiteList         map[string]bool
 	DB                string
 	LocalAuth         bool
+
+	// 内网穿透隧道配置
+	TunnelPortRange      string // 公网代理端口范围，如 "20000-21000"
+	TunnelPortStart      int    // 起始端口
+	TunnelPortEnd        int    // 结束端口
+	AuthServiceURL       string // Auth 服务地址
+	SSOEnabled           bool   // 是否启用 SSO
+	TunnelTokenSecret    string // 隧道 token 签名密钥
+	DefaultTokenDuration int    // 默认 token 有效期（秒）
 }
 
 func getConfigOpt(yamlCfg *yaml.File, name string, opt interface{}) {
@@ -83,6 +92,13 @@ func Parse(c *cli.Context) *Config {
 		getConfigOpt(yamlCfg, "db", &cfg.DB)
 		getConfigOpt(yamlCfg, "local-auth", &cfg.LocalAuth)
 
+		// 隧道配置
+		getConfigOpt(yamlCfg, "tunnel-port-range", &cfg.TunnelPortRange)
+		getConfigOpt(yamlCfg, "auth-service-url", &cfg.AuthServiceURL)
+		getConfigOpt(yamlCfg, "sso-enabled", &cfg.SSOEnabled)
+		getConfigOpt(yamlCfg, "tunnel-token-secret", &cfg.TunnelTokenSecret)
+		getConfigOpt(yamlCfg, "default-token-duration", &cfg.DefaultTokenDuration)
+
 		val, err := yamlCfg.Get("white-list")
 		if err == nil {
 			if val == "*" || val == "\"*\"" {
@@ -93,6 +109,32 @@ func Parse(c *cli.Context) *Config {
 				}
 			}
 		}
+	}
+
+	// 解析端口范围
+	if cfg.TunnelPortRange == "" {
+		cfg.TunnelPortRange = "20000-21000"
+	}
+	ports := strings.Split(cfg.TunnelPortRange, "-")
+	if len(ports) == 2 {
+		cfg.TunnelPortStart, _ = strconv.Atoi(strings.TrimSpace(ports[0]))
+		cfg.TunnelPortEnd, _ = strconv.Atoi(strings.TrimSpace(ports[1]))
+	}
+	if cfg.TunnelPortStart <= 0 {
+		cfg.TunnelPortStart = 20000
+	}
+	if cfg.TunnelPortEnd <= cfg.TunnelPortStart {
+		cfg.TunnelPortEnd = 21000
+	}
+
+	// 默认 token 有效期
+	if cfg.DefaultTokenDuration <= 0 {
+		cfg.DefaultTokenDuration = 3600
+	}
+
+	// 默认 token 签名密钥
+	if cfg.TunnelTokenSecret == "" {
+		cfg.TunnelTokenSecret = "rttys-default-tunnel-secret-change-me"
 	}
 
 	if cfg.SslCert != "" && cfg.SslKey != "" {

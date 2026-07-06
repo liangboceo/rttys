@@ -34,6 +34,28 @@ var httpProxySessions sync.Map
 
 func handleHttpProxyResp(resp *httpResp) {
 	data := resp.data
+
+	// 尝试解析为隧道数据响应消息
+	// 格式: tunnel_id(64B) + direction(1B) + data_len(4B) + data
+	if tunnelID, direction, payload, ok := parseTunnelDataMsg(data); ok {
+		if direction == 1 {
+			// 隧道响应：转发到对应的代理连接
+			tunnelProxyConns.Range(func(key, value interface{}) bool {
+				tpc := value.(*tunnelProxyConn)
+				if tpc.tunnelID == tunnelID {
+					_, err := tpc.conn.Write(payload)
+					if err != nil {
+						tpc.conn.Close()
+						tunnelProxyConns.Delete(key)
+					}
+					return false
+				}
+				return true
+			})
+		}
+		return
+	}
+
 	addr := data[:18]
 	data = data[18:]
 

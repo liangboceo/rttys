@@ -616,6 +616,46 @@ func apiStart(br *broker) {
 		}
 	})
 
+	// ========================================
+	// SSO 登录桥接
+	// ========================================
+	r.POST("/api/sso/auth", func(c *gin.Context) {
+		handleSSOAuth(br, c)
+	})
+
+	// ========================================
+	// 内网穿透隧道管理 API
+	// ========================================
+	tunnelGroup := r.Group("/api/tunnel")
+	tunnelGroup.Use(func(c *gin.Context) {
+		if !httpAuth(cfg, c) {
+			c.AbortWithStatus(http.StatusUnauthorized)
+		}
+	})
+
+	tunnelGroup.POST("/create", func(c *gin.Context) {
+		handleTunnelCreate(br, c)
+	})
+
+	tunnelGroup.POST("/delete", func(c *gin.Context) {
+		handleTunnelDelete(br, c)
+	})
+
+	tunnelGroup.GET("/list", func(c *gin.Context) {
+		handleTunnelList(br, c)
+	})
+
+	tunnelGroup.GET("/:id", func(c *gin.Context) {
+		handleTunnelDetail(br, c)
+	})
+
+	// ========================================
+	// 公网代理路由（可选：在主服务上也暴露 /proxy/:token/*path）
+	// ========================================
+	r.Any("/proxy/:token/*path", func(c *gin.Context) {
+		handleTokenProxy(br, c)
+	})
+
 	r.NoRoute(func(c *gin.Context) {
 		fs, _ := fs.Sub(staticFs, "ui/dist")
 

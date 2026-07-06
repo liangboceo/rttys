@@ -31,6 +31,25 @@ func initDb(cfg *config.Config) error {
 	}
 
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS device(id VARCHAR(512) PRIMARY KEY NOT NULL, description TEXT NOT NULL, online DATETIME NOT NULL, username TEXT NOT NULL)")
+	if err != nil {
+		return err
+	}
+
+	// 内网穿透隧道表
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS tunnel (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		tunnel_id VARCHAR(64) UNIQUE NOT NULL,
+		devid VARCHAR(128) NOT NULL,
+		device_port INT NOT NULL,
+		proto VARCHAR(8) DEFAULT 'http',
+		public_port INT UNIQUE NOT NULL,
+		access_token VARCHAR(128) UNIQUE NOT NULL,
+		token_expire DATETIME NOT NULL,
+		status TINYINT DEFAULT 1,
+		creator VARCHAR(64) NOT NULL,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`)
 
 	return err
 }
@@ -68,6 +87,16 @@ func runRttys(c *cli.Context) {
 
 	br := newBroker(cfg)
 	go br.run()
+
+	// 初始化隧道端口计数器
+	InitTunnelPortCounter(cfg.TunnelPortStart)
+
+	// 恢复已存在的活跃隧道的代理端口监听
+	restoreTunnelProxies(br)
+
+	// 启动 token 过期回收定时任务
+	go startTunnelCleanupScheduler(cfg)
+
 	//先启动接口，再启动监听，防止监听时间太长导致的接口启动不了
 	listenHttpProxy(br)
 	apiStart(br)
@@ -160,6 +189,31 @@ func main() {
 						Name:    "verbose",
 						Aliases: []string{"V"},
 						Usage:   "more detailed output",
+					},
+					// 内网穿透隧道配置
+					&cli.StringFlag{
+						Name:  "tunnel-port-range",
+						Value: "20000-21000",
+						Usage: "port range for tunnel proxy",
+					},
+					&cli.StringFlag{
+						Name:  "auth-service-url",
+						Value: "",
+						Usage: "Auth service URL for SSO verification",
+					},
+					&cli.BoolFlag{
+						Name:  "sso-enabled",
+						Usage: "enable SSO authentication",
+					},
+					&cli.StringFlag{
+						Name:  "tunnel-token-secret",
+						Value: "",
+						Usage: "secret key for tunnel token signing",
+					},
+					&cli.IntFlag{
+						Name:  "default-token-duration",
+						Value: 3600,
+						Usage: "default tunnel token duration in seconds",
 					},
 				},
 				Action: func(c *cli.Context) error {
