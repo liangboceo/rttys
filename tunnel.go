@@ -348,6 +348,17 @@ func RevokeTunnel(cfgDb, tunnelID string) error {
 	return err
 }
 
+// DeleteTunnel 删除隧道记录
+func DeleteTunnel(cfgDb, tunnelID string) error {
+	db, err := instanceDB(cfgDb)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec("DELETE FROM tunnel WHERE tunnel_id = ?", tunnelID)
+	return err
+}
+
 // CleanExpiredTunnels 清理过期的隧道
 func CleanExpiredTunnels(cfgDb string) ([]*Tunnel, error) {
 	db, err := instanceDB(cfgDb)

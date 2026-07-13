@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	"rttys/config"
 	"rttys/utils"
@@ -91,9 +92,6 @@ func runRttys(c *cli.Context) {
 	// 初始化隧道端口计数器
 	InitTunnelPortCounter(cfg.TunnelPortStart)
 
-	// 恢复已存在的活跃隧道的代理端口监听
-	restoreTunnelProxies(br)
-
 	// 启动 token 过期回收定时任务
 	go startTunnelCleanupScheduler(cfg)
 
@@ -101,6 +99,12 @@ func runRttys(c *cli.Context) {
 	listenHttpProxy(br)
 	apiStart(br)
 	listenDevice(br)
+
+	// 等待设备重连后，对 tunnel 表做一次启动兜底处理：在线设备恢复端口，离线设备删除记录释放端口
+	go func() {
+		time.Sleep(5 * time.Second)
+		restoreTunnelProxies(br)
+	}()
 	select {}
 }
 

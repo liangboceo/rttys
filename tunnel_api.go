@@ -118,6 +118,11 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 		return
 	}
 	if existing != nil {
+		if err := EnsureTunnelProxyServer(br, existing.PublicPort, existing.TunnelID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": -1, "msg": "failed to start existing proxy server"})
+			return
+		}
+
 		publicIP := getPublicIP(c)
 		resp := TunnelCreateResponse{
 			TunnelID:    existing.TunnelID,
@@ -156,7 +161,7 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 	log.Info().Msgf("Tunnel create msg sent to device %s: tunnel=%s port=%d", req.DevID, tunnelID, req.Port)
 
 	// 启动代理服务器
-	err = StartTunnelProxyServer(br, publicPort, tunnelID)
+	err = EnsureTunnelProxyServer(br, publicPort, tunnelID)
 	if err != nil {
 		// 启动失败，回收隧道
 		_ = RevokeTunnel(cfg.DB, tunnelID)

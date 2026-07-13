@@ -64,13 +64,22 @@ func AllocatePort(cfgDb string, startPort, endPort int) (int, error) {
 
 // StartTunnelProxyServer 启动单个端口的隧道代理服务器
 func StartTunnelProxyServer(br *broker, port int, tunnelID string) error {
+	if _, ok := tunnelProxyServers.Load(port); ok {
+		return nil
+	}
+
 	addr := fmt.Sprintf(":%d", port)
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return fmt.Errorf("failed to listen on port %d: %v", port, err)
 	}
 
-	tunnelProxyServers.Store(port, ln)
+	if existing, loaded := tunnelProxyServers.LoadOrStore(port, ln); loaded {
+		ln.Close()
+		if existing != nil {
+			return nil
+		}
+	}
 
 	log.Info().Msgf("Tunnel proxy listening on port %d for tunnel %s", port, tunnelID)
 
@@ -95,6 +104,11 @@ func StartTunnelProxyServer(br *broker, port int, tunnelID string) error {
 	}()
 
 	return nil
+}
+
+// EnsureTunnelProxyServer 确保指定隧道端口存在监听，已存在则直接复用
+func EnsureTunnelProxyServer(br *broker, port int, tunnelID string) error {
+	return StartTunnelProxyServer(br, port, tunnelID)
 }
 
 // StopTunnelProxyServer 停止指定端口的隧道代理服务器
@@ -431,15 +445,22 @@ func restoreTunnelProxies(br *broker) {
 			continue
 		}
 
-		// 检查是否已过期
 		if time.Now().After(t.TokenExpire) {
-			// 标记为过期
-			RevokeTunnel(cfg.DB, t.TunnelID)
+			_ = RevokeTunnel(cfg.DB, t.TunnelID)
 			continue
 		}
 
-		// 恢复代理端口监听
-		err := StartTunnelProxyServer(br, t.PublicPort, t.TunnelID)
+		if _, ok := br.devices[t.DevID]; !ok {
+			if err := DeleteTunnel(cfg.DB, t.TunnelID); err != nil {
+				log.Error().Msgf("Failed to delete offline tunnel %s for device %s: %s", t.TunnelID, t.DevID, err.Error())
+				continue
+			}
+			log.Info().Msgf("Deleted offline tunnel %s for device %s on port %d", t.TunnelID, t.DevID, t.PublicPort)
+			continue
+		}
+
+		// 恢复代理端口监听，不存在则启动，已存在则复用
+		err := EnsureTunnelProxyServer(br, t.PublicPort, t.TunnelID)
 		if err != nil {
 			log.Error().Msgf("Failed to restore proxy for tunnel %s on port %d: %s",
 				t.TunnelID, t.PublicPort, err.Error())
