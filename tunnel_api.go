@@ -141,7 +141,7 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 	err = StartTunnelProxyServer(br, publicPort, tunnelID)
 	if err != nil {
 		// 启动失败，回收隧道
-		RevokeTunnel(cfg.DB, tunnelID)
+		_ = RevokeTunnel(cfg.DB, tunnelID)
 		c.JSON(http.StatusInternalServerError, gin.H{"code": -1, "msg": "failed to start proxy server"})
 		return
 	}
@@ -201,7 +201,7 @@ func handleTunnelDelete(br *broker, c *gin.Context) {
 	tunnelProxyConns.Range(func(key, value interface{}) bool {
 		tpc := value.(*tunnelProxyConn)
 		if tpc.tunnelID == tunnel.TunnelID {
-			tpc.conn.Close()
+			_ = tpc.conn.Close()
 			tunnelProxyConns.Delete(key)
 		}
 		return true
