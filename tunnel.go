@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"rttys/utils"
@@ -29,6 +30,34 @@ type Tunnel struct {
 	Creator     string    `json:"creator"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func parseDBTime(s string) time.Time {
+	if idx := strings.Index(s, " m="); idx >= 0 {
+		s = s[:idx]
+	}
+	layouts := []string{
+		time.RFC3339Nano,
+		time.RFC3339,
+		"2006-01-02 15:04:05.999999999 -0700 MST",
+		"2006-01-02 15:04:05.999999 -0700 MST",
+		"2006-01-02 15:04:05 -0700 MST",
+		"2006-01-02 15:04:05.999999999-07:00",
+		"2006-01-02 15:04:05.999999999-07:00 MST",
+		"2006-01-02 15:04:05.999999999",
+		"2006-01-02 15:04:05",
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t
+		}
+	}
+	log.Error().Msgf("parseDBTime failed: %s", s)
+	return time.Time{}
+}
+
+func formatDBTime(t time.Time) string {
+	return t.Format("2006-01-02 15:04:05")
 }
 
 // GenAccessToken 生成访问 token
@@ -111,7 +140,7 @@ func CreateTunnel(cfgDb, tunnelID, devID string, devicePort int, proto string, p
 	_, err = db.Exec(
 		`INSERT INTO tunnel (tunnel_id, devid, device_port, proto, public_port, access_token, token_expire, status, creator, created_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
-		tunnelID, devID, devicePort, proto, publicPort, accessToken, expire, creator, now, now,
+		tunnelID, devID, devicePort, proto, publicPort, accessToken, formatDBTime(expire), creator, formatDBTime(now), formatDBTime(now),
 	)
 	if err != nil {
 		log.Error().Msgf("CreateTunnel DB error: %s", err.Error())
@@ -158,9 +187,9 @@ func GetTunnelByToken(cfgDb, token string) (*Tunnel, error) {
 		return nil, err
 	}
 
-	t.TokenExpire, _ = time.Parse("2006-01-02 15:04:05", expireStr)
-	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr)
-	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAtStr)
+	t.TokenExpire = parseDBTime(expireStr)
+	t.CreatedAt = parseDBTime(createdAtStr)
+	t.UpdatedAt = parseDBTime(updatedAtStr)
 
 	return t, nil
 }
@@ -190,9 +219,9 @@ func GetTunnelByID(cfgDb, tunnelID string) (*Tunnel, error) {
 		return nil, err
 	}
 
-	t.TokenExpire, _ = time.Parse("2006-01-02 15:04:05", expireStr)
-	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr)
-	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAtStr)
+	t.TokenExpire = parseDBTime(expireStr)
+	t.CreatedAt = parseDBTime(createdAtStr)
+	t.UpdatedAt = parseDBTime(updatedAtStr)
 
 	return t, nil
 }
@@ -222,9 +251,9 @@ func GetTunnelByPublicPort(cfgDb string, port int) (*Tunnel, error) {
 		return nil, err
 	}
 
-	t.TokenExpire, _ = time.Parse("2006-01-02 15:04:05", expireStr)
-	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr)
-	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAtStr)
+	t.TokenExpire = parseDBTime(expireStr)
+	t.CreatedAt = parseDBTime(createdAtStr)
+	t.UpdatedAt = parseDBTime(updatedAtStr)
 
 	return t, nil
 }
@@ -244,7 +273,7 @@ func GetActiveTunnelByDevPort(cfgDb, devID string, devicePort int, proto string)
 	err = db.QueryRow(
 		`SELECT id, tunnel_id, devid, device_port, proto, public_port, access_token, token_expire, status, creator, created_at, updated_at
 		 FROM tunnel WHERE devid = ? AND device_port = ? AND proto = ? AND status = 1 AND token_expire > ?
-		 ORDER BY created_at DESC LIMIT 1`, devID, devicePort, proto, time.Now(),
+		 ORDER BY created_at DESC LIMIT 1`, devID, devicePort, proto, formatDBTime(time.Now()),
 	).Scan(&t.ID, &t.TunnelID, &t.DevID, &t.DevicePort, &t.Proto, &t.PublicPort,
 		&t.AccessToken, &expireStr, &t.Status, &t.Creator, &createdAtStr, &updatedAtStr)
 
@@ -255,9 +284,9 @@ func GetActiveTunnelByDevPort(cfgDb, devID string, devicePort int, proto string)
 		return nil, err
 	}
 
-	t.TokenExpire, _ = time.Parse("2006-01-02 15:04:05", expireStr)
-	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr)
-	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAtStr)
+	t.TokenExpire = parseDBTime(expireStr)
+	t.CreatedAt = parseDBTime(createdAtStr)
+	t.UpdatedAt = parseDBTime(updatedAtStr)
 
 	return t, nil
 }
@@ -298,9 +327,9 @@ func ListTunnels(cfgDb, devid, creator string) ([]*Tunnel, error) {
 			log.Error().Msgf("ListTunnels scan error: %s", err.Error())
 			continue
 		}
-		t.TokenExpire, _ = time.Parse("2006-01-02 15:04:05", expireStr)
-		t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr)
-		t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAtStr)
+		t.TokenExpire = parseDBTime(expireStr)
+		t.CreatedAt = parseDBTime(createdAtStr)
+		t.UpdatedAt = parseDBTime(updatedAtStr)
 		tunnels = append(tunnels, t)
 	}
 
@@ -315,7 +344,7 @@ func RevokeTunnel(cfgDb, tunnelID string) error {
 	}
 
 	_, err = db.Exec("UPDATE tunnel SET status = 0, updated_at = ? WHERE tunnel_id = ?",
-		time.Now(), tunnelID)
+		formatDBTime(time.Now()), tunnelID)
 	return err
 }
 
@@ -331,7 +360,7 @@ func CleanExpiredTunnels(cfgDb string) ([]*Tunnel, error) {
 	// 查询所有过期但状态仍为活跃的隧道
 	rows, err := db.Query(
 		`SELECT id, tunnel_id, devid, device_port, proto, public_port, access_token, token_expire, status, creator, created_at, updated_at
-		 FROM tunnel WHERE status = 1 AND token_expire <= ?`, now,
+		 FROM tunnel WHERE status = 1 AND token_expire <= ?`, formatDBTime(now),
 	)
 	if err != nil {
 		return nil, err
@@ -347,15 +376,15 @@ func CleanExpiredTunnels(cfgDb string) ([]*Tunnel, error) {
 		if err != nil {
 			continue
 		}
-		t.TokenExpire, _ = time.Parse("2006-01-02 15:04:05", expireStr)
-		t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr)
-		t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAtStr)
+		t.TokenExpire = parseDBTime(expireStr)
+		t.CreatedAt = parseDBTime(createdAtStr)
+		t.UpdatedAt = parseDBTime(updatedAtStr)
 		expired = append(expired, t)
 	}
 
 	// 批量标记为已过期
 	if len(expired) > 0 {
-		_, err = db.Exec("UPDATE tunnel SET status = 0, updated_at = ? WHERE status = 1 AND token_expire <= ?", now, now)
+		_, err = db.Exec("UPDATE tunnel SET status = 0, updated_at = ? WHERE status = 1 AND token_expire <= ?", formatDBTime(now), formatDBTime(now))
 		if err != nil {
 			log.Error().Msgf("CleanExpiredTunnels update error: %s", err.Error())
 		}
