@@ -121,7 +121,7 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 		publicIP := getPublicIP(c)
 		resp := TunnelCreateResponse{
 			TunnelID:    existing.TunnelID,
-			PublicURL:   FormatPublicURL(publicIP, existing.Proto, existing.PublicPort),
+			PublicURL:   FormatPublicURLWithToken(publicIP, existing.Proto, existing.PublicPort, existing.AccessToken),
 			AccessToken: existing.AccessToken,
 			ExpireAt:    existing.TokenExpire.Format(time.RFC3339),
 		}
@@ -169,7 +169,7 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 
 	resp := TunnelCreateResponse{
 		TunnelID:    tunnel.TunnelID,
-		PublicURL:   FormatPublicURL(publicIP, req.Proto, publicPort),
+		PublicURL:   FormatPublicURLWithToken(publicIP, req.Proto, publicPort, tunnel.AccessToken),
 		AccessToken: tunnel.AccessToken,
 		ExpireAt:    tunnel.TokenExpire.Format(time.RFC3339),
 	}
@@ -259,7 +259,7 @@ func handleTunnelList(br *broker, c *gin.Context) {
 			DevicePort:  t.DevicePort,
 			Proto:       t.Proto,
 			PublicPort:  t.PublicPort,
-			PublicURL:   FormatPublicURL(publicIP, t.Proto, t.PublicPort),
+			PublicURL:   FormatPublicURLWithToken(publicIP, t.Proto, t.PublicPort, t.AccessToken),
 			Status:      t.Status,
 			Creator:     t.Creator,
 			TokenExpire: t.TokenExpire.Format(time.RFC3339),
@@ -298,7 +298,7 @@ func handleTunnelDetail(br *broker, c *gin.Context) {
 		DevicePort:  tunnel.DevicePort,
 		Proto:       tunnel.Proto,
 		PublicPort:  tunnel.PublicPort,
-		PublicURL:   FormatPublicURL(publicIP, tunnel.Proto, tunnel.PublicPort),
+		PublicURL:   FormatPublicURLWithToken(publicIP, tunnel.Proto, tunnel.PublicPort, tunnel.AccessToken),
 		Status:      tunnel.Status,
 		Creator:     tunnel.Creator,
 		TokenExpire: tunnel.TokenExpire.Format(time.RFC3339),

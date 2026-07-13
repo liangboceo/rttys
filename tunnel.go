@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -416,4 +417,13 @@ func FormatPublicURL(host string, proto string, port int) string {
 		proto = "http"
 	}
 	return fmt.Sprintf("%s://%s:%d", proto, host, port)
+}
+
+// FormatPublicURLWithToken 格式化携带访问 token 的公网访问地址
+func FormatPublicURLWithToken(host string, proto string, port int, token string) string {
+	publicURL := FormatPublicURL(host, proto, port)
+	if token == "" {
+		return publicURL
+	}
+	return publicURL + "?rtty_token=" + url.QueryEscape(token)
 }
