@@ -683,22 +683,40 @@ func proxyRawHTTPRequest(raw []byte, host string, port int) ([]byte, error) {
 		return nil, errors.New("empty http request")
 	}
 
-	conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), 10*time.Second)
+	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(raw)))
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	if req.URL != nil {
+		req.URL.Scheme = "http"
+		req.URL.Host = net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	if req.Host == "" {
+		req.Host = net.JoinHostPort(host, strconv.Itoa(port))
+	}
+	req.RequestURI = ""
+	req.Close = true
+	req.Header.Set("Connection", "close")
 
-	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
-	if _, err := conn.Write(raw); err != nil {
+	transport := &http.Transport{
+		DisableKeepAlives: true,
+		DialContext: (&net.Dialer{
+			Timeout: 10 * time.Second,
+		}).DialContext,
+	}
+	defer transport.CloseIdleConnections()
+
+	resp, err := transport.RoundTrip(req)
+	if err != nil {
 		return nil, err
 	}
+	defer resp.Body.Close()
 
-	resp, err := io.ReadAll(conn)
-	if err != nil && len(resp) == 0 {
+	var buf bytes.Buffer
+	if err := resp.Write(&buf); err != nil {
 		return nil, err
 	}
-	return resp, nil
+	return buf.Bytes(), nil
 }
 
 func buildHTTPError(status int, msg string) []byte {

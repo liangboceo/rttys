@@ -43,15 +43,21 @@ func handleHttpProxyResp(resp *httpResp) {
 			tunnelProxyConns.Range(func(key, value interface{}) bool {
 				tpc := value.(*tunnelProxyConn)
 				if tpc.tunnelID == tunnelID {
-					_, err := tpc.conn.Write(payload)
-					if err != nil {
-						tpc.conn.Close()
-						tunnelProxyConns.Delete(key)
+					if tpc.conn != nil {
+						_, err := tpc.conn.Write(payload)
+						if err != nil {
+							tunnelProxyConns.Delete(key)
+							tpc.Close()
+							return false
+						}
 					}
+					tunnelProxyConns.Delete(key)
+					tpc.Close()
 					return false
 				}
 				return true
 			})
+
 		}
 		return
 	}

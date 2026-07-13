@@ -24,7 +24,20 @@ type tunnelProxyConn struct {
 	tunnelID  string
 	devID     string
 	conn      net.Conn
+	done      chan struct{}
+	once      sync.Once
 	createdAt time.Time
+}
+
+func (tpc *tunnelProxyConn) Close() {
+	tpc.once.Do(func() {
+		if tpc.conn != nil {
+			_ = tpc.conn.Close()
+		}
+		if tpc.done != nil {
+			close(tpc.done)
+		}
+	})
 }
 
 // tunnelProxyPool 隧道代理连接池
@@ -184,6 +197,7 @@ func handleTunnelProxyConn(br *broker, conn net.Conn, publicPort int) {
 		tunnelID:  tunnel.TunnelID,
 		devID:     tunnel.DevID,
 		conn:      conn,
+		done:      make(chan struct{}),
 		createdAt: time.Now(),
 	}
 
@@ -213,16 +227,12 @@ func handleTunnelProxyConn(br *broker, conn net.Conn, publicPort int) {
 
 // handleTunnelHTTP 处理普通 HTTP 隧道代理请求-响应
 func handleTunnelHTTP(br *broker, tpc *tunnelProxyConn, dev client.Client, tunnel *Tunnel, reader *bufio.Reader) {
-	// 对于普通 HTTP 请求，读取后续请求（HTTP/1.1 keep-alive）
-	for {
-		req, err := http.ReadRequest(reader)
-		if err != nil {
-			return
-		}
-
-		requestData := serializeHTTPRequest(req)
-		msg := buildTunnelDataMsg(tunnel.TunnelID, 0, requestData)
-		br.httpReq <- &httpReq{tunnel.DevID, msg}
+	select {
+	case <-tpc.done:
+		return
+	case <-time.After(30 * time.Second):
+		log.Error().Msgf("Tunnel proxy response timeout: stream=%s tunnel=%s dev=%s", tpc.streamID, tunnel.TunnelID, tunnel.DevID)
+		return
 	}
 }
 
