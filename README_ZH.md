@@ -68,6 +68,11 @@ FLUSH PRIVILEGES;
 
     sudo docker run -it -p 5912:5912 -p 5913:5913 zhaojh329/rttys:latest
 
+## 文档
+
+- [内网穿透通道创建接口文档](./docs/tunnel_create_api.md) - 创建和管理设备隧道代理
+- [rtty-client 使用文档](./docs/rtty-client-usage.md) - 设备客户端使用与配置说明
+
 ## 贡献代码
 如果你想帮助[rttys](https://github.com/zhaojh329/rttys)变得更好，请参考
 [CONTRIBUTING_ZH.md](https://github.com/zhaojh329/rttys/blob/master/CONTRIBUTING_ZH.md)。
