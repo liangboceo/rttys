@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"rttys/client"
@@ -34,34 +33,20 @@ var (
 	tunnelProxyServers sync.Map // port(int) -> net.Listener
 )
 
-// tunnelPortCounter 原子计数器，用于端口分配
-var tunnelPortCounter int64
+var tunnelPortAllocMu sync.Mutex
 
-// InitTunnelPortCounter 初始化端口计数器
+// InitTunnelPortCounter 保留启动初始化入口，端口分配改为扫描端口池以支持回收复用
 func InitTunnelPortCounter(startPort int) {
-	atomic.StoreInt64(&tunnelPortCounter, int64(startPort))
 }
 
 // AllocatePort 分配一个可用的公网代理端口
-// 使用原子递增计数器 + 端口探测方式
+// 从端口范围起始位置顺序扫描，已回收或过期的端口会被重新利用
 func AllocatePort(cfgDb string, startPort, endPort int) (int, error) {
-	maxAttempts := endPort - startPort + 1
+	tunnelPortAllocMu.Lock()
+	defer tunnelPortAllocMu.Unlock()
 
-	for i := 0; i < maxAttempts; i++ {
-		candidate := int(atomic.AddInt64(&tunnelPortCounter, 1))
-		if candidate > endPort {
-			// 回绕到起始端口
-			for {
-				old := atomic.LoadInt64(&tunnelPortCounter)
-				if atomic.CompareAndSwapInt64(&tunnelPortCounter, old, int64(startPort)) {
-					break
-				}
-			}
-			candidate = startPort + 1
-			atomic.StoreInt64(&tunnelPortCounter, int64(candidate))
-		}
-
-		// 检查数据库中是否已被占用
+	for candidate := startPort; candidate <= endPort; candidate++ {
+		// 检查数据库中是否已被活跃隧道占用
 		if IsPortUsed(cfgDb, candidate) {
 			continue
 		}
