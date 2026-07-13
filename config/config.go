@@ -33,6 +33,7 @@ type Config struct {
 	SSOEnabled           bool   // 是否启用 SSO
 	TunnelTokenSecret    string // 隧道 token 签名密钥
 	DefaultTokenDuration int    // 默认 token 有效期（秒）
+	PublicIP             string // 配置的公网 IP，优先使用
 }
 
 func getConfigOpt(yamlCfg *yaml.File, name string, opt interface{}) {
@@ -98,6 +99,7 @@ func Parse(c *cli.Context) *Config {
 		getConfigOpt(yamlCfg, "sso-enabled", &cfg.SSOEnabled)
 		getConfigOpt(yamlCfg, "tunnel-token-secret", &cfg.TunnelTokenSecret)
 		getConfigOpt(yamlCfg, "default-token-duration", &cfg.DefaultTokenDuration)
+		getConfigOpt(yamlCfg, "public-ip", &cfg.PublicIP)
 
 		val, err := yamlCfg.Get("white-list")
 		if err == nil {

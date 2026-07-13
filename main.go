@@ -219,6 +219,11 @@ func main() {
 						Value: 3600,
 						Usage: "default tunnel token duration in seconds",
 					},
+					&cli.StringFlag{
+						Name:  "public-ip",
+						Value: "",
+						Usage: "public IP address for tunnel public_url (auto-detect if empty)",
+					},
 				},
 				Action: func(c *cli.Context) error {
 					runRttys(c)

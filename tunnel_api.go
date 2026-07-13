@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"rttys/config"
 	"rttys/utils"
 
 	"github.com/gin-gonic/gin"
@@ -137,7 +138,7 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 			return
 		}
 
-		publicIP := getPublicIP(c)
+		publicIP := getPublicIP(cfg, c)
 		resp := TunnelCreateResponse{
 			TunnelID:    tunnel.TunnelID,
 			PublicURL:   FormatPublicURLWithToken(publicIP, tunnel.Proto, tunnel.PublicPort, tunnel.AccessToken),
@@ -182,7 +183,7 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 	}
 
 	// 获取公网 IP
-	publicIP := getPublicIP(c)
+	publicIP := getPublicIP(cfg, c)
 
 	resp := TunnelCreateResponse{
 		TunnelID:    tunnel.TunnelID,
@@ -266,7 +267,7 @@ func handleTunnelList(br *broker, c *gin.Context) {
 		return
 	}
 
-	publicIP := getPublicIP(c)
+	publicIP := getPublicIP(cfg, c)
 
 	list := make([]TunnelListItem, 0, len(tunnels))
 	for _, t := range tunnels {
@@ -307,7 +308,7 @@ func handleTunnelDetail(br *broker, c *gin.Context) {
 		return
 	}
 
-	publicIP := getPublicIP(c)
+	publicIP := getPublicIP(cfg, c)
 
 	item := TunnelListItem{
 		TunnelID:    tunnel.TunnelID,
@@ -418,7 +419,12 @@ func formatHTTPHeaders(req *http.Request) string {
 }
 
 // getPublicIP 获取公网 IP 地址
-func getPublicIP(c *gin.Context) string {
+// 如果配置文件中配置了 public-ip，优先使用配置的地址
+func getPublicIP(cfg *config.Config, c *gin.Context) string {
+	if cfg.PublicIP != "" {
+		return cfg.PublicIP
+	}
+
 	host, _, err := net.SplitHostPort(c.Request.Host)
 	if err != nil {
 		host = c.Request.Host
