@@ -260,6 +260,15 @@ func GetTunnelByPublicPort(cfgDb string, port int) (*Tunnel, error) {
 
 // GetActiveTunnelByDevPort 查询同一设备同一内网端口的活跃隧道
 func GetActiveTunnelByDevPort(cfgDb, devID string, devicePort int, proto string) (*Tunnel, error) {
+	return getTunnelByDevPort(cfgDb, devID, devicePort, proto, true)
+}
+
+// GetTunnelByDevPort 查询同一设备同一内网端口的隧道，不限制状态和过期时间
+func GetTunnelByDevPort(cfgDb, devID string, devicePort int, proto string) (*Tunnel, error) {
+	return getTunnelByDevPort(cfgDb, devID, devicePort, proto, false)
+}
+
+func getTunnelByDevPort(cfgDb, devID string, devicePort int, proto string, activeOnly bool) (*Tunnel, error) {
 	db, err := instanceDB(cfgDb)
 	if err != nil {
 		return nil, err
@@ -270,11 +279,16 @@ func GetActiveTunnelByDevPort(cfgDb, devID string, devicePort int, proto string)
 	var createdAtStr string
 	var updatedAtStr string
 
-	err = db.QueryRow(
-		`SELECT id, tunnel_id, devid, device_port, proto, public_port, access_token, token_expire, status, creator, created_at, updated_at
-		 FROM tunnel WHERE devid = ? AND device_port = ? AND proto = ? AND status = 1 AND token_expire > ?
-		 ORDER BY created_at DESC LIMIT 1`, devID, devicePort, proto, formatDBTime(time.Now()),
-	).Scan(&t.ID, &t.TunnelID, &t.DevID, &t.DevicePort, &t.Proto, &t.PublicPort,
+	query := `SELECT id, tunnel_id, devid, device_port, proto, public_port, access_token, token_expire, status, creator, created_at, updated_at
+		 FROM tunnel WHERE devid = ? AND device_port = ? AND proto = ?`
+	args := []interface{}{devID, devicePort, proto}
+	if activeOnly {
+		query += " AND status = 1 AND token_expire > ?"
+		args = append(args, formatDBTime(time.Now()))
+	}
+	query += " ORDER BY updated_at DESC, created_at DESC LIMIT 1"
+
+	err = db.QueryRow(query, args...).Scan(&t.ID, &t.TunnelID, &t.DevID, &t.DevicePort, &t.Proto, &t.PublicPort,
 		&t.AccessToken, &expireStr, &t.Status, &t.Creator, &createdAtStr, &updatedAtStr)
 
 	if err == sql.ErrNoRows {
@@ -289,6 +303,27 @@ func GetActiveTunnelByDevPort(cfgDb, devID string, devicePort int, proto string)
 	t.UpdatedAt = parseDBTime(updatedAtStr)
 
 	return t, nil
+}
+
+// UpdateTunnelByID 更新已有隧道记录并重新置为活跃
+func UpdateTunnelByID(cfgDb, tunnelID, accessToken string, duration int, creator string) (*Tunnel, error) {
+	db, err := instanceDB(cfgDb)
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	expire := now.Add(time.Duration(duration) * time.Second)
+	_, err = db.Exec(
+		`UPDATE tunnel SET access_token = ?, token_expire = ?, status = 1, creator = ?, updated_at = ? WHERE tunnel_id = ?`,
+		accessToken, formatDBTime(expire), creator, formatDBTime(now), tunnelID,
+	)
+	if err != nil {
+		log.Error().Msgf("UpdateTunnel DB error: %s", err.Error())
+		return nil, err
+	}
+
+	return GetTunnelByID(cfgDb, tunnelID)
 }
 
 // ListTunnels 查询隧道列表
@@ -356,6 +391,17 @@ func DeleteTunnel(cfgDb, tunnelID string) error {
 	}
 
 	_, err = db.Exec("DELETE FROM tunnel WHERE tunnel_id = ?", tunnelID)
+	return err
+}
+
+// DeleteInactiveTunnelByPublicPort 删除指定公网端口的非活跃旧记录，便于端口回收复用
+func DeleteInactiveTunnelByPublicPort(cfgDb string, publicPort int) error {
+	db, err := instanceDB(cfgDb)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec("DELETE FROM tunnel WHERE public_port = ? AND status != 1", publicPort)
 	return err
 }
 

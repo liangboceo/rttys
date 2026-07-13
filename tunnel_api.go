@@ -111,24 +111,38 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 		return
 	}
 
-	// 同一设备同一内网端口已存在活跃代理时，直接返回原公网端口
-	existing, err := GetActiveTunnelByDevPort(cfg.DB, req.DevID, req.Port, req.Proto)
+	// 获取创建者用户名
+	creator := getLoginUsername(c)
+
+	// 同一设备同一内网端口已存在记录时，更新原记录并复用原公网端口
+	existing, err := GetTunnelByDevPort(cfg.DB, req.DevID, req.Port, req.Proto)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": -1, "msg": "failed to query existing tunnel"})
 		return
 	}
 	if existing != nil {
-		if err := EnsureTunnelProxyServer(br, existing.PublicPort, existing.TunnelID); err != nil {
+		accessToken := GenAccessToken(cfg.TunnelTokenSecret, existing.TunnelID, req.DevID)
+		tunnel, err := UpdateTunnelByID(cfg.DB, existing.TunnelID, accessToken, req.Duration, creator)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": -1, "msg": "failed to update tunnel"})
+			return
+		}
+
+		createMsg := buildTunnelCreateMsg(tunnel.TunnelID, req.Port, req.Proto)
+		br.httpReq <- &httpReq{req.DevID, createMsg}
+		log.Info().Msgf("Tunnel update msg sent to device %s: tunnel=%s port=%d", req.DevID, tunnel.TunnelID, req.Port)
+
+		if err := EnsureTunnelProxyServer(br, tunnel.PublicPort, tunnel.TunnelID); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"code": -1, "msg": "failed to start existing proxy server"})
 			return
 		}
 
 		publicIP := getPublicIP(c)
 		resp := TunnelCreateResponse{
-			TunnelID:    existing.TunnelID,
-			PublicURL:   FormatPublicURLWithToken(publicIP, existing.Proto, existing.PublicPort, existing.AccessToken),
-			AccessToken: existing.AccessToken,
-			ExpireAt:    existing.TokenExpire.Format(time.RFC3339),
+			TunnelID:    tunnel.TunnelID,
+			PublicURL:   FormatPublicURLWithToken(publicIP, tunnel.Proto, tunnel.PublicPort, tunnel.AccessToken),
+			AccessToken: tunnel.AccessToken,
+			ExpireAt:    tunnel.TokenExpire.Format(time.RFC3339),
 		}
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": resp})
 		return
@@ -140,13 +154,11 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": -1, "msg": "no available port"})
 		return
 	}
+	_ = DeleteInactiveTunnelByPublicPort(cfg.DB, publicPort)
 
 	// 生成隧道 ID 和访问 Token
 	tunnelID := GenTunnelID()
 	accessToken := GenAccessToken(cfg.TunnelTokenSecret, tunnelID, req.DevID)
-
-	// 获取创建者用户名
-	creator := getLoginUsername(c)
 
 	// 持久化隧道记录
 	tunnel, err := CreateTunnel(cfg.DB, tunnelID, req.DevID, req.Port, req.Proto, publicPort, accessToken, req.Duration, creator)
