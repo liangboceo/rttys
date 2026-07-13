@@ -671,14 +671,16 @@ func (c *Client) handleLegacyHTTPProxy(data []byte) error {
 	ip := net.IP(dest[:4]).String()
 	port := binary.BigEndian.Uint16(dest[4:6])
 
-	resp, err := proxyRawHTTPRequest(payload, ip, int(port))
-	if err != nil {
-		resp = buildHTTPError(http.StatusBadGateway, err.Error())
+	writeLegacyChunk := func(chunk []byte) error {
+		out := append([]byte{}, srcAddr...)
+		out = append(out, chunk...)
+		return c.writeMsg(msgTypeHttp, out)
 	}
 
-	out := append([]byte{}, srcAddr...)
-	out = append(out, resp...)
-	return c.writeMsg(msgTypeHttp, out)
+	if err := proxyRawHTTPStream(payload, ip, int(port), writeLegacyChunk); err != nil {
+		_ = writeLegacyChunk(buildHTTPError(http.StatusBadGateway, err.Error()))
+	}
+	return writeLegacyChunk(nil)
 }
 
 func proxyRawHTTPRequest(raw []byte, host string, port int) ([]byte, error) {
@@ -700,58 +702,40 @@ func proxyRawHTTPStream(raw []byte, host string, port int, writeChunk func([]byt
 		return err
 	}
 	targetHost := net.JoinHostPort(host, strconv.Itoa(port))
-	if req.URL != nil {
-		req.URL.Scheme = "http"
-		req.URL.Host = targetHost
-	}
 	req.Host = targetHost
 	req.RequestURI = ""
 	req.Close = true
 	req.Header.Set("Connection", "close")
 
-	transport := &http.Transport{
-		DisableKeepAlives: true,
-		DialContext: (&net.Dialer{
-			Timeout: 10 * time.Second,
-		}).DialContext,
-	}
-	defer transport.CloseIdleConnections()
-
-	resp, err := transport.RoundTrip(req)
+	conn, err := net.DialTimeout("tcp", targetHost, 10*time.Second)
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
 
-	resp.Header.Del("Content-Length")
-	resp.Header.Set("Connection", "close")
-	resp.Close = true
-
-	pr, pw := io.Pipe()
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- resp.Write(pw)
-		_ = pw.Close()
-	}()
+	if err := req.Write(conn); err != nil {
+		return err
+	}
 
 	buf := make([]byte, 16*1024)
 	for {
-		n, readErr := pr.Read(buf)
+		n, readErr := conn.Read(buf)
 		if n > 0 {
 			if err := writeChunk(buf[:n]); err != nil {
-				_ = pr.Close()
 				return err
 			}
 		}
 		if readErr == io.EOF {
-			break
+			return nil
 		}
 		if readErr != nil {
-			_ = pr.Close()
+			if ne, ok := readErr.(net.Error); ok && ne.Timeout() {
+				return nil
+			}
 			return readErr
 		}
 	}
-	return <-errCh
 }
 
 func buildHTTPError(status int, msg string) []byte {

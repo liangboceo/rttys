@@ -190,39 +190,52 @@ func handleTunnelProxyConn(br *broker, conn net.Conn, publicPort int) {
 		return
 	}
 
-	// 生成流ID
-	streamID := utils.GenUniqueID("tun-stream")
-
-	tpc := &tunnelProxyConn{
-		streamID:  streamID,
-		tunnelID:  tunnel.TunnelID,
-		devID:     tunnel.DevID,
-		conn:      conn,
-		done:      make(chan struct{}),
-		createdAt: time.Now(),
+	devImpl, ok := dev.(*device)
+	if !ok {
+		log.Error().Msgf("Invalid device type for tunnel %s", tunnel.TunnelID)
+		return
 	}
 
-	tunnelProxyConns.Store(streamID, tpc)
-	defer tunnelProxyConns.Delete(streamID)
+	hostHeaderRewrite := fmt.Sprintf("127.0.0.1:%d", tunnel.DevicePort)
+	destAddr := genDestAddr(hostHeaderRewrite)
+	if destAddr == nil {
+		log.Error().Msgf("Invalid tunnel target address: %s", hostHeaderRewrite)
+		return
+	}
+	srcAddr := tcpAddr2Bytes(conn.RemoteAddr().(*net.TCPAddr))
 
-	// 序列化 HTTP 请求并发送到设备
-	requestData := serializeHTTPRequest(req)
+	cons, _ := httpProxyCons.LoadOrStore(tunnel.DevID, &sync.Map{})
+	connMap := cons.(*sync.Map)
+	connMap.Store(string(srcAddr), conn)
+	defer connMap.Delete(string(srcAddr))
 
-	// 构造隧道数据消息发送给设备
-	msg := buildTunnelDataMsg(tunnel.TunnelID, tpc.streamID, 0, requestData) // direction=0 表示请求
-	br.httpReq <- &httpReq{tunnel.DevID, msg}
+	hpw := &HttpProxyWriter{destAddr, srcAddr, hostHeaderRewrite, br, devImpl, false}
+	req.Host = hostHeaderRewrite
+	hpw.WriteRequest(req)
 
-	log.Info().Msgf("Tunnel proxy: stream=%s tunnel=%s dev=%s port=%d", streamID, tunnel.TunnelID, tunnel.DevID, publicPort)
+	log.Info().Msgf("Tunnel proxy via legacy http proxy: tunnel=%s dev=%s public_port=%d target=%s", tunnel.TunnelID, tunnel.DevID, publicPort, hostHeaderRewrite)
 
-	// 等待设备响应数据，写入客户端
-	// 响应通过 broker 的 tunnelDataResp 通道返回
-	// 这里启动一个等待协程
-
-	// 如果是 WebSocket 升级请求或需要双向通信，进入长连接模式
 	if req.Header.Get("Upgrade") == "websocket" {
-		handleTunnelWebSocket(br, tpc, dev, tunnel, reader)
-	} else {
-		handleTunnelHTTP(br, tpc, dev, tunnel, reader)
+		buf := make([]byte, 4096)
+		for {
+			n, err := conn.Read(buf)
+			if err != nil {
+				return
+			}
+			msg := append([]byte{}, srcAddr...)
+			msg = append(msg, destAddr...)
+			msg = append(msg, buf[:n]...)
+			br.httpReq <- &httpReq{tunnel.DevID, msg}
+		}
+	}
+
+	for {
+		req, err := http.ReadRequest(reader)
+		if err != nil {
+			return
+		}
+		req.Host = hostHeaderRewrite
+		hpw.WriteRequest(req)
 	}
 }
 
