@@ -111,6 +111,24 @@ func handleTunnelCreate(br *broker, c *gin.Context) {
 		return
 	}
 
+	// 同一设备同一内网端口已存在活跃代理时，直接返回原公网端口
+	existing, err := GetActiveTunnelByDevPort(cfg.DB, req.DevID, req.Port, req.Proto)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"code": -1, "msg": "failed to query existing tunnel"})
+		return
+	}
+	if existing != nil {
+		publicIP := getPublicIP(c)
+		resp := TunnelCreateResponse{
+			TunnelID:    existing.TunnelID,
+			PublicURL:   FormatPublicURL(publicIP, existing.Proto, existing.PublicPort),
+			AccessToken: existing.AccessToken,
+			ExpireAt:    existing.TokenExpire.Format(time.RFC3339),
+		}
+		c.JSON(http.StatusOK, gin.H{"code": 0, "data": resp})
+		return
+	}
+
 	// 分配公网端口
 	publicPort, err := AllocatePort(cfg.DB, cfg.TunnelPortStart, cfg.TunnelPortEnd)
 	if err != nil {

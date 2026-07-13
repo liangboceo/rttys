@@ -228,6 +228,39 @@ func GetTunnelByPublicPort(cfgDb string, port int) (*Tunnel, error) {
 	return t, nil
 }
 
+// GetActiveTunnelByDevPort 查询同一设备同一内网端口的活跃隧道
+func GetActiveTunnelByDevPort(cfgDb, devID string, devicePort int, proto string) (*Tunnel, error) {
+	db, err := instanceDB(cfgDb)
+	if err != nil {
+		return nil, err
+	}
+
+	t := &Tunnel{}
+	var expireStr string
+	var createdAtStr string
+	var updatedAtStr string
+
+	err = db.QueryRow(
+		`SELECT id, tunnel_id, devid, device_port, proto, public_port, access_token, token_expire, status, creator, created_at, updated_at
+		 FROM tunnel WHERE devid = ? AND device_port = ? AND proto = ? AND status = 1 AND token_expire > ?
+		 ORDER BY created_at DESC LIMIT 1`, devID, devicePort, proto, time.Now(),
+	).Scan(&t.ID, &t.TunnelID, &t.DevID, &t.DevicePort, &t.Proto, &t.PublicPort,
+		&t.AccessToken, &expireStr, &t.Status, &t.Creator, &createdAtStr, &updatedAtStr)
+
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	t.TokenExpire, _ = time.Parse("2006-01-02 15:04:05", expireStr)
+	t.CreatedAt, _ = time.Parse("2006-01-02 15:04:05", createdAtStr)
+	t.UpdatedAt, _ = time.Parse("2006-01-02 15:04:05", updatedAtStr)
+
+	return t, nil
+}
+
 // ListTunnels 查询隧道列表
 func ListTunnels(cfgDb, devid, creator string) ([]*Tunnel, error) {
 	db, err := instanceDB(cfgDb)

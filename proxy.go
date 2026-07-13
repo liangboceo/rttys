@@ -163,7 +163,7 @@ func handleTunnelProxyConn(br *broker, conn net.Conn, publicPort int) {
 		}
 		resp.Header.Set("Content-Type", "text/plain")
 		resp.Body = io.NopCloser(strings.NewReader("Forbidden: invalid or expired token"))
-		resp.Write(conn)
+		_ = resp.Write(conn)
 		return
 	}
 
@@ -263,6 +263,7 @@ func validateProxyToken(cfg *config.Config, tunnel *Tunnel, req *http.Request) b
 
 	// 方式三：从 Query String 中提取
 	if token == "" {
+		log.Info().Msg("token from query")
 		token = req.URL.Query().Get("rtty_token")
 	}
 
