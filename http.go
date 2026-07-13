@@ -36,28 +36,36 @@ func handleHttpProxyResp(resp *httpResp) {
 	data := resp.data
 
 	// 尝试解析为隧道数据响应消息
-	// 格式: tunnel_id(64B) + direction(1B) + data_len(4B) + data
-	if tunnelID, direction, payload, ok := parseTunnelDataMsg(data); ok {
+	// 格式: tunnel_id(64B) + stream_id(32B) + direction(1B) + data_len(4B) + data
+	if tunnelID, streamID, direction, payload, ok := parseTunnelDataMsg(data); ok {
 		if direction == 1 {
-			// 隧道响应：转发到对应的代理连接
-			tunnelProxyConns.Range(func(key, value interface{}) bool {
+			// 隧道响应：按 streamID 精确转发到对应的代理连接，避免并发请求串包
+			if value, ok := tunnelProxyConns.Load(streamID); ok {
 				tpc := value.(*tunnelProxyConn)
-				if tpc.tunnelID == tunnelID {
-					if tpc.conn != nil {
-						_, err := tpc.conn.Write(payload)
-						if err != nil {
-							tunnelProxyConns.Delete(key)
-							tpc.Close()
-							return false
-						}
-					}
-					tunnelProxyConns.Delete(key)
-					tpc.Close()
-					return false
+				if tpc.tunnelID != tunnelID {
+					log.Error().Msgf("Tunnel proxy response tunnel mismatch: stream=%s expect=%s got=%s", streamID, tpc.tunnelID, tunnelID)
+					return
 				}
-				return true
-			})
-
+				if tpc.respCh != nil {
+					select {
+					case tpc.respCh <- payload:
+					default:
+					}
+					tunnelProxyConns.Delete(streamID)
+					tpc.Close()
+					return
+				}
+				if tpc.conn != nil {
+					_, err := tpc.conn.Write(payload)
+					if err != nil {
+						tunnelProxyConns.Delete(streamID)
+						tpc.Close()
+						return
+					}
+				}
+				tunnelProxyConns.Delete(streamID)
+				tpc.Close()
+			}
 		}
 		return
 	}

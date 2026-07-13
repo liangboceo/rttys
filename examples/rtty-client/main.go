@@ -605,9 +605,9 @@ func safePath(root, name string) string {
 }
 
 func (c *Client) handleHTTP(data []byte) {
-	if tunnelID, direction, payload, ok := parseTunnelDataMsg(data); ok {
+	if tunnelID, streamID, direction, payload, ok := parseTunnelDataMsg(data); ok {
 		if direction == 0 {
-			c.handleTunnelHTTP(tunnelID, payload)
+			c.handleTunnelHTTP(tunnelID, streamID, payload)
 		}
 		return
 	}
@@ -634,7 +634,7 @@ func (c *Client) handleHTTP(data []byte) {
 	}
 }
 
-func (c *Client) handleTunnelHTTP(tunnelID string, reqData []byte) {
+func (c *Client) handleTunnelHTTP(tunnelID, streamID string, reqData []byte) {
 	c.tunnelMu.RLock()
 	target := c.tunnels[tunnelID]
 	c.tunnelMu.RUnlock()
@@ -649,7 +649,7 @@ func (c *Client) handleTunnelHTTP(tunnelID string, reqData []byte) {
 	if err != nil {
 		resp = buildHTTPError(http.StatusBadGateway, err.Error())
 	}
-	msg := buildTunnelDataMsg(tunnelID, 1, resp)
+	msg := buildTunnelDataMsg(tunnelID, streamID, 1, resp)
 	_ = c.writeMsg(msgTypeHttp, msg)
 }
 
@@ -724,26 +724,28 @@ func buildHTTPError(status int, msg string) []byte {
 	return []byte(fmt.Sprintf("HTTP/1.1 %d %s\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", status, http.StatusText(status), len(body), body))
 }
 
-func parseTunnelDataMsg(data []byte) (tunnelID string, direction byte, payload []byte, ok bool) {
-	if len(data) < 69 {
-		return "", 0, nil, false
+func parseTunnelDataMsg(data []byte) (tunnelID string, streamID string, direction byte, payload []byte, ok bool) {
+	if len(data) < 101 {
+		return "", "", 0, nil, false
 	}
 	tunnelID = strings.TrimRight(string(data[:64]), "\x00")
-	direction = data[64]
-	dataLen := binary.BigEndian.Uint32(data[65:69])
-	if len(data) < 69+int(dataLen) || (direction != 0 && direction != 1) {
-		return "", 0, nil, false
+	streamID = strings.TrimRight(string(data[64:96]), "\x00")
+	direction = data[96]
+	dataLen := binary.BigEndian.Uint32(data[97:101])
+	if streamID == "" || len(data) < 101+int(dataLen) || (direction != 0 && direction != 1) {
+		return "", "", 0, nil, false
 	}
-	payload = data[69 : 69+dataLen]
-	return tunnelID, direction, payload, true
+	payload = data[101 : 101+dataLen]
+	return tunnelID, streamID, direction, payload, true
 }
 
-func buildTunnelDataMsg(tunnelID string, direction byte, data []byte) []byte {
-	msg := make([]byte, 64+1+4+len(data))
+func buildTunnelDataMsg(tunnelID, streamID string, direction byte, data []byte) []byte {
+	msg := make([]byte, 64+32+1+4+len(data))
 	copy(msg[:64], []byte(tunnelID))
-	msg[64] = direction
-	binary.BigEndian.PutUint32(msg[65:69], uint32(len(data)))
-	copy(msg[69:], data)
+	copy(msg[64:96], []byte(streamID))
+	msg[96] = direction
+	binary.BigEndian.PutUint32(msg[97:101], uint32(len(data)))
+	copy(msg[101:], data)
 	return msg
 }
 

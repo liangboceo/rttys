@@ -351,12 +351,6 @@ func handleTokenProxy(br *broker, c *gin.Context) {
 	bodyBytes, _ := io.ReadAll(c.Request.Body)
 	requestData := append([]byte(requestLine+headerStr+"\r\n"), bodyBytes...)
 
-	msg := buildTunnelDataMsg(tunnel.TunnelID, 0, requestData) // direction=0 表示请求
-	br.httpReq <- &httpReq{tunnel.DevID, msg}
-
-	// 设置超时等待响应
-	timeout := time.After(30 * time.Second)
-
 	// 注册临时响应通道
 	respCh := make(chan []byte, 1)
 	tempStreamID := utils.GenUniqueID("token-proxy")
@@ -364,11 +358,18 @@ func handleTokenProxy(br *broker, c *gin.Context) {
 		streamID:  tempStreamID,
 		tunnelID:  tunnel.TunnelID,
 		devID:     tunnel.DevID,
-		conn:      nil, // 无长连接
+		respCh:    respCh,
+		done:      make(chan struct{}),
 		createdAt: time.Now(),
 	}
 	tunnelProxyConns.Store(tempStreamID, tpc)
 	defer tunnelProxyConns.Delete(tempStreamID)
+
+	msg := buildTunnelDataMsg(tunnel.TunnelID, tempStreamID, 0, requestData) // direction=0 表示请求
+	br.httpReq <- &httpReq{tunnel.DevID, msg}
+
+	// 设置超时等待响应
+	timeout := time.After(30 * time.Second)
 
 	// 轮询等待响应
 	ticker := time.NewTicker(100 * time.Millisecond)

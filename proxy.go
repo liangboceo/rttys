@@ -24,6 +24,7 @@ type tunnelProxyConn struct {
 	tunnelID  string
 	devID     string
 	conn      net.Conn
+	respCh    chan []byte
 	done      chan struct{}
 	once      sync.Once
 	createdAt time.Time
@@ -208,7 +209,7 @@ func handleTunnelProxyConn(br *broker, conn net.Conn, publicPort int) {
 	requestData := serializeHTTPRequest(req)
 
 	// 构造隧道数据消息发送给设备
-	msg := buildTunnelDataMsg(tunnel.TunnelID, 0, requestData) // direction=0 表示请求
+	msg := buildTunnelDataMsg(tunnel.TunnelID, tpc.streamID, 0, requestData) // direction=0 表示请求
 	br.httpReq <- &httpReq{tunnel.DevID, msg}
 
 	log.Info().Msgf("Tunnel proxy: stream=%s tunnel=%s dev=%s port=%d", streamID, tunnel.TunnelID, tunnel.DevID, publicPort)
@@ -244,7 +245,7 @@ func handleTunnelWebSocket(br *broker, tpc *tunnelProxyConn, dev client.Client, 
 		if err != nil {
 			return
 		}
-		msg := buildTunnelDataMsg(tunnel.TunnelID, 0, buf[:n])
+		msg := buildTunnelDataMsg(tunnel.TunnelID, tpc.streamID, 0, buf[:n])
 		br.httpReq <- &httpReq{tunnel.DevID, msg}
 	}
 }
@@ -379,41 +380,35 @@ func serializeHTTPRequest(req *http.Request) []byte {
 }
 
 // buildTunnelDataMsg 构造隧道数据消息
-// tunnel_id(64B) + direction(1B, 0=请求 1=响应) + data_len(4B big-endian) + data(N bytes)
-func buildTunnelDataMsg(tunnelID string, direction byte, data []byte) []byte {
-	msg := make([]byte, 64+1+4+len(data))
+// tunnel_id(64B) + stream_id(32B) + direction(1B, 0=请求 1=响应) + data_len(4B big-endian) + data(N bytes)
+func buildTunnelDataMsg(tunnelID, streamID string, direction byte, data []byte) []byte {
+	msg := make([]byte, 64+32+1+4+len(data))
 
-	// tunnel_id (64 bytes)
-	tidBytes := []byte(tunnelID)
-	copy(msg[:64], tidBytes)
-
-	// direction (1 byte)
-	msg[64] = direction
-
-	// data_len (4 bytes big-endian)
-	binary.BigEndian.PutUint32(msg[65:69], uint32(len(data)))
-
-	// data
-	copy(msg[69:], data)
+	copy(msg[:64], []byte(tunnelID))
+	copy(msg[64:96], []byte(streamID))
+	msg[96] = direction
+	binary.BigEndian.PutUint32(msg[97:101], uint32(len(data)))
+	copy(msg[101:], data)
 
 	return msg
 }
 
 // parseTunnelDataMsg 解析隧道数据消息
-func parseTunnelDataMsg(data []byte) (tunnelID string, direction byte, payload []byte, ok bool) {
-	if len(data) < 69 {
-		return "", 0, nil, false
+func parseTunnelDataMsg(data []byte) (tunnelID string, streamID string, direction byte, payload []byte, ok bool) {
+	if len(data) < 101 {
+		return "", "", 0, nil, false
 	}
 
 	tunnelID = strings.TrimRight(string(data[:64]), "\x00")
-	direction = data[64]
-	dataLen := binary.BigEndian.Uint32(data[65:69])
+	streamID = strings.TrimRight(string(data[64:96]), "\x00")
+	direction = data[96]
+	dataLen := binary.BigEndian.Uint32(data[97:101])
 
-	if len(data) < 69+int(dataLen) {
-		return "", 0, nil, false
+	if streamID == "" || (direction != 0 && direction != 1) || len(data) < 101+int(dataLen) {
+		return "", "", 0, nil, false
 	}
 
-	payload = data[69 : 69+dataLen]
+	payload = data[101 : 101+dataLen]
 	ok = true
 	return
 }
