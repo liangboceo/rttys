@@ -39,17 +39,23 @@ jobs:
           version=${{ github.event.inputs.version }}
           chmod +x build.sh
           ./build.sh linux amd64
-          cp rttys.conf rttys rttys-linux-amd64
+          cp rttys.conf rttys-linux-amd64/rttys
           ./build.sh linux arm64
-          cp rttys.conf rttys rttys-linux-arm64
+          cp rttys.conf rttys-linux-arm64/rttys
           ./build.sh windows amd64
-          cp rttys.conf rttys.exe rttys-windows-amd64
+          cp rttys.conf rttys-windows-amd64/rttys.exe
           mv rttys-linux-amd64 rttys-linux-amd64-$version
           mv rttys-linux-arm64 rttys-linux-arm64-$version
           mv rttys-windows-amd64 rttys-windows-amd64-$version
+          mv rtty-client-linux-amd64 rtty-client-linux-amd64-$version
+          mv rtty-client-linux-arm64 rtty-client-linux-arm64-$version
+          mv rtty-client-windows-amd64 rtty-client-windows-amd64-$version
           tar zcf rttys-linux-amd64-$version.tar.gz rttys-linux-amd64-$version
           tar zcf rttys-linux-arm64-$version.tar.gz rttys-linux-arm64-$version
           tar zcf rttys-windows-amd64-$version.tar.gz rttys-windows-amd64-$version
+          tar zcf rtty-client-linux-amd64-$version.tar.gz rtty-client-linux-amd64-$version
+          tar zcf rtty-client-linux-arm64-$version.tar.gz rtty-client-linux-arm64-$version
+          tar zcf rtty-client-windows-amd64-$version.tar.gz rtty-client-windows-amd64-$version
 
       - name: Create a Release
         id: create_release
@@ -90,4 +96,34 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: rttys-windows-amd64-${{ github.event.inputs.version }}.tar.gz
           asset_name: rttys-windows-amd64-${{ github.event.inputs.version }}.tar.gz
+          asset_content_type: application/octet-stream
+
+      - name: Upload rtty-client linux amd64
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rtty-client-linux-amd64-${{ github.event.inputs.version }}.tar.gz
+          asset_name: rtty-client-linux-amd64-${{ github.event.inputs.version }}.tar.gz
+          asset_content_type: application/octet-stream
+
+      - name: Upload rtty-client linux arm64
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rtty-client-linux-arm64-${{ github.event.inputs.version }}.tar.gz
+          asset_name: rtty-client-linux-arm64-${{ github.event.inputs.version }}.tar.gz
+          asset_content_type: application/octet-stream
+
+      - name: Upload rtty-client windows amd64
+        uses: actions/upload-release-asset@v1.0.2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: rtty-client-windows-amd64-${{ github.event.inputs.version }}.tar.gz
+          asset_name: rtty-client-windows-amd64-${{ github.event.inputs.version }}.tar.gz
           asset_content_type: application/octet-stream
