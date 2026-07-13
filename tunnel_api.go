@@ -421,8 +421,8 @@ func formatHTTPHeaders(req *http.Request) string {
 // getPublicIP 获取公网 IP 地址
 // 如果配置文件中配置了 public-ip，优先使用配置的地址
 func getPublicIP(cfg *config.Config, c *gin.Context) string {
-	if cfg.PublicIP != "" {
-		return cfg.PublicIP
+	if ip := strings.Trim(cfg.PublicIP, `"`); ip != "" {
+		return ip
 	}
 
 	host, _, err := net.SplitHostPort(c.Request.Host)
