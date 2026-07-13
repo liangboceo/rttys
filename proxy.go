@@ -166,6 +166,11 @@ func handleTunnelProxyConn(br *broker, conn net.Conn, publicPort int) {
 		return
 	}
 
+	if shouldRedirectTunnelToken(req) {
+		redirectTunnelToken(conn, tunnel, req)
+		return
+	}
+
 	// 生成流ID
 	streamID := utils.GenUniqueID("tun-stream")
 
@@ -229,6 +234,44 @@ func handleTunnelWebSocket(br *broker, tpc *tunnelProxyConn, dev client.Client, 
 	}
 }
 
+func tunnelAuthCookieName(tunnelID string) string {
+	return "rtty_tunnel_token_" + strings.NewReplacer("-", "_", ".", "_").Replace(tunnelID)
+}
+
+func shouldRedirectTunnelToken(req *http.Request) bool {
+	return req.URL.Query().Get("rtty_token") != ""
+}
+
+func redirectTunnelToken(conn net.Conn, tunnel *Tunnel, req *http.Request) {
+	query := req.URL.Query()
+	query.Del("rtty_token")
+	location := req.URL.Path
+	if encodedQuery := query.Encode(); encodedQuery != "" {
+		location += "?" + encodedQuery
+	}
+	if req.URL.RawFragment != "" {
+		location += "#" + req.URL.RawFragment
+	}
+
+	resp := &http.Response{
+		StatusCode: http.StatusFound,
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		Header:     make(http.Header),
+	}
+	resp.Header.Set("Location", location)
+	resp.Header.Add("Set-Cookie", (&http.Cookie{
+		Name:     tunnelAuthCookieName(tunnel.TunnelID),
+		Value:    tunnel.AccessToken,
+		Path:     "/",
+		Expires:  tunnel.TokenExpire,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}).String())
+	resp.Body = io.NopCloser(strings.NewReader(""))
+	_ = resp.Write(conn)
+}
+
 // validateProxyToken 验证代理请求中的 token
 func validateProxyToken(cfg *config.Config, tunnel *Tunnel, req *http.Request) bool {
 	// 检查隧道状态和过期时间
@@ -262,12 +305,17 @@ func validateProxyToken(cfg *config.Config, tunnel *Tunnel, req *http.Request) b
 
 	// 方式三：从 Query String 中提取
 	if token == "" {
-		log.Info().Msg("token from query")
 		token = req.URL.Query().Get("rtty_token")
 	}
 
+	// 方式四：从首次入口写入的 Cookie 中提取，兼容静态资源等后续请求不带 query token 的场景
 	if token == "" {
-		log.Error().Msg("validateProxyToken: no token found in request")
+		if cookie, err := req.Cookie(tunnelAuthCookieName(tunnel.TunnelID)); err == nil {
+			token = cookie.Value
+		}
+	}
+
+	if token == "" {
 		return false
 	}
 
