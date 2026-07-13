@@ -645,12 +645,15 @@ func (c *Client) handleTunnelHTTP(tunnelID, streamID string, reqData []byte) {
 		port = target.port
 	}
 
-	resp, err := proxyRawHTTPRequest(reqData, host, port)
+	err := proxyRawHTTPStream(reqData, host, port, func(chunk []byte) error {
+		msg := buildTunnelDataMsg(tunnelID, streamID, 1, chunk)
+		return c.writeMsg(msgTypeHttp, msg)
+	})
 	if err != nil {
-		resp = buildHTTPError(http.StatusBadGateway, err.Error())
+		msg := buildTunnelDataMsg(tunnelID, streamID, 1, buildHTTPError(http.StatusBadGateway, err.Error()))
+		_ = c.writeMsg(msgTypeHttp, msg)
 	}
-	msg := buildTunnelDataMsg(tunnelID, streamID, 1, resp)
-	_ = c.writeMsg(msgTypeHttp, msg)
+	_ = c.writeMsg(msgTypeHttp, buildTunnelDataMsg(tunnelID, streamID, 1, nil))
 }
 
 func (c *Client) handleLegacyHTTPProxy(data []byte) error {
@@ -679,13 +682,22 @@ func (c *Client) handleLegacyHTTPProxy(data []byte) error {
 }
 
 func proxyRawHTTPRequest(raw []byte, host string, port int) ([]byte, error) {
+	var buf bytes.Buffer
+	err := proxyRawHTTPStream(raw, host, port, func(chunk []byte) error {
+		_, err := buf.Write(chunk)
+		return err
+	})
+	return buf.Bytes(), err
+}
+
+func proxyRawHTTPStream(raw []byte, host string, port int, writeChunk func([]byte) error) error {
 	if len(raw) == 0 {
-		return nil, errors.New("empty http request")
+		return errors.New("empty http request")
 	}
 
 	req, err := http.ReadRequest(bufio.NewReader(bytes.NewReader(raw)))
 	if err != nil {
-		return nil, err
+		return err
 	}
 	targetHost := net.JoinHostPort(host, strconv.Itoa(port))
 	if req.URL != nil {
@@ -707,15 +719,39 @@ func proxyRawHTTPRequest(raw []byte, host string, port int) ([]byte, error) {
 
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 
-	var buf bytes.Buffer
-	if err := resp.Write(&buf); err != nil {
-		return nil, err
+	resp.Header.Del("Content-Length")
+	resp.Header.Set("Connection", "close")
+	resp.Close = true
+
+	pr, pw := io.Pipe()
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- resp.Write(pw)
+		_ = pw.Close()
+	}()
+
+	buf := make([]byte, 16*1024)
+	for {
+		n, readErr := pr.Read(buf)
+		if n > 0 {
+			if err := writeChunk(buf[:n]); err != nil {
+				_ = pr.Close()
+				return err
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			_ = pr.Close()
+			return readErr
+		}
 	}
-	return buf.Bytes(), nil
+	return <-errCh
 }
 
 func buildHTTPError(status int, msg string) []byte {

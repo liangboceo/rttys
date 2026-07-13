@@ -46,25 +46,25 @@ func handleHttpProxyResp(resp *httpResp) {
 					log.Error().Msgf("Tunnel proxy response tunnel mismatch: stream=%s expect=%s got=%s", streamID, tpc.tunnelID, tunnelID)
 					return
 				}
+				if len(payload) == 0 {
+					tunnelProxyConns.Delete(streamID)
+					tpc.Close()
+					return
+				}
 				if tpc.respCh != nil {
 					select {
 					case tpc.respCh <- payload:
 					default:
 					}
-					tunnelProxyConns.Delete(streamID)
-					tpc.Close()
 					return
 				}
 				if tpc.conn != nil {
-					_, err := tpc.conn.Write(payload)
-					if err != nil {
+					if _, err := tpc.conn.Write(payload); err != nil {
 						tunnelProxyConns.Delete(streamID)
 						tpc.Close()
 						return
 					}
 				}
-				tunnelProxyConns.Delete(streamID)
-				tpc.Close()
 			}
 		}
 		return
