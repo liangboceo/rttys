@@ -17,8 +17,21 @@ generate() {
 	[ "$os" = "windows" ] && {
 		bin="rttys.exe"
 	}
-  mkdir -p $dir
-	GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -ldflags="-s -w -X $VersionPath.gitCommit=$GitCommit -X $VersionPath.buildTime=$BuildTime" -o $bin
+	mkdir -p $dir
+	GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -ldflags="-s -w -X $VersionPath.gitCommit=$GitCommit -X $VersionPath.buildTime=$BuildTime" -o $dir/$bin
+}
+
+generate_client() {
+	local os="$1"
+	local arch="$2"
+	local dir="rtty-client-$os-$arch"
+	local bin="rtty-client"
+	[ "$os" = "windows" ] && {
+		bin="rtty-client.exe"
+	}
+	mkdir -p $dir
+	GOOS=$os GOARCH=$arch CGO_ENABLED=0 go build -ldflags="-s -w" -o $dir/$bin ./rtty-client/
 }
 
 generate $1 $2
+generate_client $1 $2

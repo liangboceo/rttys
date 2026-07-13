@@ -28,5 +28,17 @@ jobs:
         run: |
           os=$(echo $target | awk -F. '{print $1}')
           arch=$(echo $target | awk -F. '{print $2}')
+          echo "OS=$os" >> $GITHUB_ENV
+          echo "ARCH=$arch" >> $GITHUB_ENV
           chmod +x build.sh
           ./build.sh $os $arch
+      - name: upload rttys artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rttys-${{ matrix.target }}
+          path: rttys-${{ env.OS }}-${{ env.ARCH }}/*
+      - name: upload rtty-client artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rtty-client-${{ matrix.target }}
+          path: rtty-client-${{ env.OS }}-${{ env.ARCH }}/*
