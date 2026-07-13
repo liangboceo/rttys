@@ -81,7 +81,12 @@ func StartTunnelProxyServer(br *broker, port int, tunnelID string) error {
 		}
 	}
 
-	log.Info().Msgf("Tunnel proxy listening on port %d for tunnel %s", port, tunnelID)
+	tunnel, err := GetTunnelByID(br.cfg.DB, tunnelID)
+	if err != nil || tunnel == nil {
+		log.Info().Msgf("Tunnel proxy listening on port %d for tunnel %s", port, tunnelID)
+	} else {
+		log.Info().Msgf("Tunnel proxy listening on port %d for tunnel %s, device %s:%d", port, tunnelID, tunnel.DevID, tunnel.DevicePort)
+	}
 
 	go func() {
 		defer func() {
