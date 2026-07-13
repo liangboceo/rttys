@@ -687,13 +687,12 @@ func proxyRawHTTPRequest(raw []byte, host string, port int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	targetHost := net.JoinHostPort(host, strconv.Itoa(port))
 	if req.URL != nil {
 		req.URL.Scheme = "http"
-		req.URL.Host = net.JoinHostPort(host, strconv.Itoa(port))
+		req.URL.Host = targetHost
 	}
-	if req.Host == "" {
-		req.Host = net.JoinHostPort(host, strconv.Itoa(port))
-	}
+	req.Host = targetHost
 	req.RequestURI = ""
 	req.Close = true
 	req.Header.Set("Connection", "close")
