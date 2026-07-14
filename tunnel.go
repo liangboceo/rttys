@@ -18,18 +18,18 @@ import (
 
 // Tunnel 隧道模型
 type Tunnel struct {
-	ID          int64     `json:"id"`
-	TunnelID    string    `json:"tunnel_id"`
-	DevID       string    `json:"devid"`
-	DevicePort  int       `json:"device_port"`
-	Proto       string    `json:"proto"`
-	PublicPort  int       `json:"public_port"`
-	AccessToken string    `json:"access_token"`
-	TokenExpire time.Time `json:"token_expire"`
-	Status      int       `json:"status"`
-	Creator     string    `json:"creator"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID          int64     `json:"id" doc:"数据库主键"`
+	TunnelID    string    `json:"tunnelId" doc:"隧道唯一标识"`
+	DevID       string    `json:"devId" doc:"设备唯一标识"`
+	DevicePort  int       `json:"devicePort" doc:"设备内网端口"`
+	Proto       string    `json:"proto" doc:"隧道协议"`
+	PublicPort  int       `json:"publicPort" doc:"公网访问端口"`
+	AccessToken string    `json:"accessToken" doc:"隧道访问令牌"`
+	TokenExpire time.Time `json:"tokenExpire" doc:"访问令牌过期时间"`
+	Status      int       `json:"status" doc:"隧道状态：0-已回收，1-活跃"`
+	Creator     string    `json:"creator" doc:"创建者用户名"`
+	CreatedAt   time.Time `json:"createdAt" doc:"创建时间"`
+	UpdatedAt   time.Time `json:"updatedAt" doc:"更新时间"`
 }
 
 func parseDBTime(s string) time.Time {
@@ -469,32 +469,32 @@ func GenTunnelID() string {
 
 // TunnelCreateRequest 创建隧道请求
 type TunnelCreateRequest struct {
-	DevID    string `json:"devid" binding:"required"`
-	Port     int    `json:"port" binding:"required"`
-	Proto    string `json:"proto"`
-	Duration int    `json:"duration"`
+	DevID    string `json:"devId" binding:"required" doc:"设备唯一标识"`
+	Port     int    `json:"port" binding:"required" doc:"设备内网端口"`
+	Proto    string `json:"proto" doc:"隧道协议，默认 http"`
+	Duration int    `json:"duration" doc:"隧道有效时长，单位秒"`
 }
 
 // TunnelCreateResponse 创建隧道响应
 type TunnelCreateResponse struct {
-	TunnelID    string `json:"tunnel_id"`
-	PublicURL   string `json:"public_url"`
-	AccessToken string `json:"access_token"`
-	ExpireAt    string `json:"expire_at"`
+	TunnelID    string `json:"tunnelId" doc:"隧道唯一标识"`
+	PublicURL   string `json:"publicUrl" doc:"携带访问令牌的公网访问地址"`
+	AccessToken string `json:"accessToken" doc:"隧道访问令牌"`
+	ExpireAt    string `json:"expireAt" doc:"访问令牌过期时间，RFC3339 格式"`
 }
 
 // TunnelListItem 隧道列表项
 type TunnelListItem struct {
-	TunnelID    string `json:"tunnel_id"`
-	DevID       string `json:"devid"`
-	DevicePort  int    `json:"device_port"`
-	Proto       string `json:"proto"`
-	PublicPort  int    `json:"public_port"`
-	PublicURL   string `json:"public_url"`
-	Status      int    `json:"status"`
-	Creator     string `json:"creator"`
-	TokenExpire string `json:"token_expire"`
-	CreatedAt   string `json:"created_at"`
+	TunnelID    string `json:"tunnelId" doc:"隧道唯一标识"`
+	DevID       string `json:"devId" doc:"设备唯一标识"`
+	DevicePort  int    `json:"devicePort" doc:"设备内网端口"`
+	Proto       string `json:"proto" doc:"隧道协议"`
+	PublicPort  int    `json:"publicPort" doc:"公网访问端口"`
+	PublicURL   string `json:"publicUrl" doc:"携带访问令牌的公网访问地址"`
+	Status      int    `json:"status" doc:"隧道状态：0-已回收，1-活跃"`
+	Creator     string `json:"creator" doc:"创建者用户名"`
+	TokenExpire string `json:"tokenExpire" doc:"访问令牌过期时间，RFC3339 格式"`
+	CreatedAt   string `json:"createdAt" doc:"创建时间，RFC3339 格式"`
 }
 
 // FormatPublicURL 格式化公网访问地址
@@ -511,5 +511,5 @@ func FormatPublicURLWithToken(host string, proto string, port int, token string)
 	if token == "" {
 		return publicURL
 	}
-	return publicURL + "?rtty_token=" + url.QueryEscape(token)
+	return publicURL + "?rttyToken=" + url.QueryEscape(token)
 }

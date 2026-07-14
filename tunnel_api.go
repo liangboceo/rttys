@@ -17,7 +17,7 @@ import (
 
 // SSOAuthRequest SSO 认证请求
 type SSOAuthRequest struct {
-	SSOToken string `json:"sso_token" binding:"required"`
+	SSOToken string `json:"ssoToken" binding:"required" doc:"SSO 平台签发的认证令牌"`
 }
 
 // handleSSOAuth 处理 SSO 登录桥接
@@ -247,7 +247,7 @@ func handleTunnelDelete(br *broker, c *gin.Context) {
 }
 
 // handleTunnelList 查询隧道列表
-// GET /api/tunnel/list?devid=xxx
+// GET /api/tunnel/list?devId=xxx
 func handleTunnelList(br *broker, c *gin.Context) {
 	cfg := br.cfg
 	allowOrigin(c.Writer)

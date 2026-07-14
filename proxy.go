@@ -268,12 +268,12 @@ func tunnelAuthCookieName(tunnelID string) string {
 }
 
 func shouldRedirectTunnelToken(req *http.Request) bool {
-	return req.URL.Query().Get("rtty_token") != ""
+	return req.URL.Query().Get("rttyToken") != ""
 }
 
 func redirectTunnelToken(conn net.Conn, tunnel *Tunnel, req *http.Request) {
 	query := req.URL.Query()
-	query.Del("rtty_token")
+	query.Del("rttyToken")
 	location := req.URL.Path
 	if encodedQuery := query.Encode(); encodedQuery != "" {
 		location += "?" + encodedQuery
@@ -334,7 +334,7 @@ func validateProxyToken(cfg *config.Config, tunnel *Tunnel, req *http.Request) b
 
 	// 方式三：从 Query String 中提取
 	if token == "" {
-		token = req.URL.Query().Get("rtty_token")
+		token = req.URL.Query().Get("rttyToken")
 	}
 
 	// 方式四：从首次入口写入的 Cookie 中提取，兼容静态资源等后续请求不带 query token 的场景
