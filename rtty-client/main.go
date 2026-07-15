@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -59,6 +60,9 @@ type Client struct {
 	token             string
 	useTLS            bool
 	insecure          bool
+	caCert            string
+	clientCert        string
+	clientKey         string
 	root              string
 	httpHost          string
 	httpPort          int
@@ -106,11 +110,21 @@ func main() {
 	token := flag.String("token", "", "device token, must match rttys token config when enabled")
 	useTLS := flag.Bool("tls", false, "connect with TLS")
 	insecure := flag.Bool("insecure", false, "skip TLS certificate verification")
+	caCert := flag.String("ca-cert", "", "CA certificate PEM file path")
+	clientCert := flag.String("client-cert", "", "client public certificate PEM file path")
+	clientKey := flag.String("client-key", "", "client private key PEM file path")
 	root := flag.String("root", ".", "file protocol root directory")
 	httpHost := flag.String("http-host", "127.0.0.1", "default host for legacy msgTypeHttp proxy target")
 	httpPort := flag.Int("http-port", 80, "default port for legacy msgTypeHttp proxy target")
 	reconnect := flag.Duration("reconnect", 5*time.Second, "reconnect interval, set 0 to disable")
 	flag.Parse()
+
+	if (*clientCert == "") != (*clientKey == "") {
+		log.Fatal("client-cert and client-key must be specified together")
+	}
+	if *caCert != "" || *clientCert != "" {
+		*useTLS = true
+	}
 
 	absRoot, err := filepath.Abs(*root)
 	if err != nil {
@@ -124,6 +138,9 @@ func main() {
 		token:             *token,
 		useTLS:            *useTLS,
 		insecure:          *insecure,
+		caCert:            *caCert,
+		clientCert:        *clientCert,
+		clientKey:         *clientKey,
 		root:              absRoot,
 		httpHost:          *httpHost,
 		httpPort:          *httpPort,
@@ -190,7 +207,11 @@ func (c *Client) connect() error {
 	var conn net.Conn
 	var err error
 	if c.useTLS {
-		conn, err = tls.Dial("tcp", c.addr, &tls.Config{InsecureSkipVerify: c.insecure})
+		tlsConfig, err := c.loadTLSConfig()
+		if err != nil {
+			return err
+		}
+		conn, err = tls.Dial("tcp", c.addr, tlsConfig)
 	} else {
 		conn, err = net.Dial("tcp", c.addr)
 	}
@@ -200,6 +221,40 @@ func (c *Client) connect() error {
 	c.conn = conn
 	c.reader = bufio.NewReader(conn)
 	return nil
+}
+
+func (c *Client) loadTLSConfig() (*tls.Config, error) {
+	if (c.clientCert == "") != (c.clientKey == "") {
+		return nil, errors.New("client certificate and private key must be specified together")
+	}
+
+	tlsConfig := &tls.Config{
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: c.insecure,
+	}
+
+	if c.caCert != "" {
+		caPEM, err := os.ReadFile(c.caCert)
+		if err != nil {
+			return nil, fmt.Errorf("read CA certificate %q: %w", c.caCert, err)
+		}
+
+		rootCAs := x509.NewCertPool()
+		if !rootCAs.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("parse CA certificate %q: no certificates found", c.caCert)
+		}
+		tlsConfig.RootCAs = rootCAs
+	}
+
+	if c.clientCert != "" {
+		certificate, err := tls.LoadX509KeyPair(c.clientCert, c.clientKey)
+		if err != nil {
+			return nil, fmt.Errorf("load client certificate and private key: %w", err)
+		}
+		tlsConfig.Certificates = []tls.Certificate{certificate}
+	}
+
+	return tlsConfig, nil
 }
 
 func (c *Client) buildRegisterMsg() []byte {
