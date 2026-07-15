@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -186,7 +187,11 @@ func (c *Client) runOnce(ctx context.Context) error {
 	if err := c.connect(); err != nil {
 		return err
 	}
-	defer c.conn.Close()
+	if isNilConn(c.conn) {
+		return errors.New("connect succeeded with nil connection")
+	}
+	conn := c.conn
+	defer conn.Close()
 	defer c.closeAllSessions()
 	defer c.closeAllFiles()
 
@@ -277,8 +282,19 @@ func (c *Client) writeMsg(typ byte, data []byte) error {
 
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	if isNilConn(c.conn) {
+		return errors.New("connection is nil")
+	}
 	_, err := c.conn.Write(append(header, data...))
 	return err
+}
+
+func isNilConn(conn net.Conn) bool {
+	if conn == nil {
+		return true
+	}
+	v := reflect.ValueOf(conn)
+	return v.Kind() == reflect.Ptr && v.IsNil()
 }
 
 func (c *Client) readMsg() (byte, []byte, error) {
