@@ -628,9 +628,9 @@ func apiStart(br *broker) {
 	// ========================================
 	tunnelGroup := r.Group("/api/tunnel")
 	tunnelGroup.Use(func(c *gin.Context) {
-		if !httpAuth(cfg, c) {
-			c.AbortWithStatus(http.StatusUnauthorized)
-		}
+		//if !httpAuth(cfg, c) {
+		//	c.AbortWithStatus(http.StatusUnauthorized)
+		//}
 	})
 
 	tunnelGroup.POST("/create", func(c *gin.Context) {
